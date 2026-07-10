@@ -37,5 +37,13 @@ contextBridge.exposeInMainWorld('anydl', {
     const listener = (_e, stats) => cb(stats);
     ipcRenderer.on('system:stats', listener);
     return () => ipcRenderer.removeListener('system:stats', listener);
+  },
+
+  // Embedded browser + real network sniffer
+  getBrowserPartition: () => ipcRenderer.invoke('browser:partition'),
+  onMediaDetected: (cb) => {
+    const listener = (_e, evt) => cb(evt);
+    ipcRenderer.on('browser:media-detected', listener);
+    return () => ipcRenderer.removeListener('browser:media-detected', listener);
   }
 });

@@ -68,6 +68,14 @@ export interface SystemStatsPayload {
   temperature: number;
 }
 
+export interface DetectedMediaEvent {
+  url: string;
+  kind: string;
+  contentType: string | null;
+  resourceType: string;
+  timestamp: number;
+}
+
 interface AnydlBridge {
   isElectron: true;
   platform: string;
@@ -85,6 +93,8 @@ interface AnydlBridge {
   resumeDownload(task: DownloadStartTask): Promise<{ ok: boolean }>;
   onDownloadEvent(cb: (evt: DownloadEvent) => void): () => void;
   onSystemStats(cb: (stats: SystemStatsPayload) => void): () => void;
+  getBrowserPartition(): Promise<string>;
+  onMediaDetected(cb: (evt: DetectedMediaEvent) => void): () => void;
 }
 
 declare global {
@@ -161,5 +171,13 @@ export const api = {
   onSystemStats(cb: (stats: SystemStatsPayload) => void) {
     if (!window.anydl) return () => {};
     return window.anydl.onSystemStats(cb);
+  },
+  async getBrowserPartition(): Promise<string | null> {
+    if (!window.anydl) return null;
+    return window.anydl.getBrowserPartition();
+  },
+  onMediaDetected(cb: (evt: DetectedMediaEvent) => void) {
+    if (!window.anydl) return () => {};
+    return window.anydl.onMediaDetected(cb);
   }
 };

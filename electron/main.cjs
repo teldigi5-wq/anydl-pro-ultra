@@ -34,7 +34,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true
     }
   });
 
@@ -49,6 +50,52 @@ function createWindow() {
   }
 
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+const BROWSER_PARTITION = 'persist:anydl-browser';
+const seenMediaUrls = new Set();
+
+const MEDIA_URL_RE = /\.(m3u8|mpd|mp4|webm|mov|m4a|mp3)(\?|#|$)/i;
+const MEDIA_HOST_RE = /googlevideo\.com|videoplayback|\/manifest\b|\/hls\b|\/dash\b/i;
+const MEDIA_CT_RE = /video\/|audio\/|application\/vnd\.apple\.mpegurl|application\/x-mpegurl|application\/dash\+xml/i;
+
+function guessMediaKind(url, contentType) {
+  const ct = (contentType || '').toLowerCase();
+  if (/m3u8|mpegurl/i.test(url) || ct.includes('mpegurl')) return 'HLS Manifest (.m3u8)';
+  if (/\.mpd/i.test(url) || ct.includes('dash+xml')) return 'DASH Manifest (.mpd)';
+  if (/\.mp4/i.test(url) || ct.includes('video/mp4')) return 'MP4 Video';
+  if (/\.webm/i.test(url) || ct.includes('video/webm')) return 'WebM Video';
+  if (/\.(m4a|mp3)/i.test(url) || ct.startsWith('audio/')) return 'Audio Stream';
+  return 'Media Stream';
+}
+
+function setupBrowserNetworkSniffer() {
+  const { session } = require('electron');
+  const ses = session.fromPartition(BROWSER_PARTITION);
+
+  ses.webRequest.onHeadersReceived((details, callback) => {
+    try {
+      const headers = details.responseHeaders || {};
+      const ctKey = Object.keys(headers).find(k => k.toLowerCase() === 'content-type');
+      const contentType = ctKey ? headers[ctKey][0] : '';
+
+      const urlMatches = MEDIA_URL_RE.test(details.url) || MEDIA_HOST_RE.test(details.url);
+      const ctMatches = MEDIA_CT_RE.test(contentType || '');
+
+      if ((urlMatches || ctMatches) && !seenMediaUrls.has(details.url)) {
+        seenMediaUrls.add(details.url);
+        if (seenMediaUrls.size > 500) seenMediaUrls.clear(); // basic memory cap for long sessions
+        send('browser:media-detected', {
+          url: details.url,
+          kind: guessMediaKind(details.url, contentType),
+          contentType: contentType || null,
+          resourceType: details.resourceType,
+          timestamp: Date.now()
+        });
+      }
+    } catch { /* never let a sniffing error break the actual page load */ }
+    callback({});
+  });
 }
 
 function send(channel, payload) {
@@ -117,6 +164,7 @@ app.whenReady().then(async () => {
   applyAutoStart(store.getAll().autoStart);
   createWindow();
   startSystemStats();
+  setupBrowserNetworkSniffer();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -188,3 +236,4 @@ ipcMain.handle('download:resume', async (_e, task) => {
 });
 
 ipcMain.handle('app:platform', () => process.platform);
+ipcMain.handle('browser:partition', () => BROWSER_PARTITION);

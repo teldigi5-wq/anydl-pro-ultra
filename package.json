@@ -46,6 +46,7 @@
   "build": {
     "appId": "com.anydlproultra.app",
     "productName": "AnyDL Pro Ultra",
+    "publish": null,
     "directories": {
       "output": "release"
     },

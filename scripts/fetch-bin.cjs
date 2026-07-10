@@ -17,6 +17,7 @@ const { execFileSync } = require('child_process');
 const OUT_DIR = path.join(__dirname, '..', 'resources', 'bin');
 const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
 const FFMPEG_ZIP_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip';
+const ESRGAN_ZIP_URL = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
 
 function download(url, dest, redirects = 0) {
   return new Promise((resolve, reject) => {
