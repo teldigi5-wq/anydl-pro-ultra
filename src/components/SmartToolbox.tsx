@@ -6,6 +6,13 @@ import {
 } from 'lucide-react';
 import { api, isElectron } from '../lib/api';
 
+export interface WatermarkRegion {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
 export interface SmartToolsState {
   trimEnabled: boolean;
   trimStart: string;
@@ -13,6 +20,8 @@ export interface SmartToolsState {
   audioNormalize: boolean;
   chapterMarkers: boolean;
   watermarkRemove: boolean;
+  watermarkMode: 'blur' | 'delogo';
+  watermarkRegion: WatermarkRegion;
   noiseReduction: boolean;
   upscaleAI: boolean;
   splitByChapters: boolean;
@@ -23,6 +32,7 @@ export interface SmartToolsState {
 interface SmartToolboxProps {
   tools: SmartToolsState;
   setTools: (t: SmartToolsState) => void;
+  previewThumbnail?: string | null;
 }
 
 const TOOL_DEFS: Array<{
@@ -53,7 +63,7 @@ const TOOL_DEFS: Array<{
     key: 'watermarkRemove',
     icon: <Image className="w-4 h-4" />,
     title: 'Watermark Clean',
-    desc: 'Not wired to the engine yet — no reliable auto-detection without per-video coordinates. Coming soon.',
+    desc: 'Real: draw a box over the logo — ffmpeg blurs or delogos that exact region',
     color: 'pink',
     type: 'toggle'
   },
@@ -99,7 +109,7 @@ const TOOL_DEFS: Array<{
   }
 ];
 
-export const SmartToolbox: React.FC<SmartToolboxProps> = ({ tools, setTools }) => {
+export const SmartToolbox: React.FC<SmartToolboxProps> = ({ tools, setTools, previewThumbnail }) => {
   const [expanded, setExpanded] = useState(true);
   const [gpuChecked, setGpuChecked] = useState(false);
   const [hasCapableGpu, setHasCapableGpu] = useState(true);
@@ -201,6 +211,16 @@ export const SmartToolbox: React.FC<SmartToolboxProps> = ({ tools, setTools }) =
         )}
       </div>
 
+      {tools.watermarkRemove && (
+        <WatermarkRegionPicker
+          thumbnail={previewThumbnail}
+          mode={tools.watermarkMode}
+          region={tools.watermarkRegion}
+          onModeChange={(m) => setTools({ ...tools, watermarkMode: m })}
+          onRegionChange={(r) => setTools({ ...tools, watermarkRegion: r })}
+        />
+      )}
+
       {expanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 relative z-10">
           {TOOL_DEFS.map((tool, i) => {
@@ -259,6 +279,115 @@ export const SmartToolbox: React.FC<SmartToolboxProps> = ({ tools, setTools }) =
   );
 };
 
+interface WatermarkRegionPickerProps {
+  thumbnail?: string | null;
+  mode: 'blur' | 'delogo';
+  region: WatermarkRegion;
+  onModeChange: (m: 'blur' | 'delogo') => void;
+  onRegionChange: (r: WatermarkRegion) => void;
+}
+
+const WatermarkRegionPicker: React.FC<WatermarkRegionPickerProps> = ({
+  thumbnail, mode, region, onModeChange, onRegionChange
+}) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dragStart, setDragStart] = React.useState<{ x: number; y: number } | null>(null);
+
+  const pctFromEvent = (e: React.MouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+    return { x, y };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const p = pctFromEvent(e);
+    setDragStart(p);
+    onRegionChange({ xPct: p.x, yPct: p.y, wPct: 0, hPct: 0 });
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!dragStart) return;
+    const p = pctFromEvent(e);
+    const xPct = Math.min(dragStart.x, p.x);
+    const yPct = Math.min(dragStart.y, p.y);
+    const wPct = Math.abs(p.x - dragStart.x);
+    const hPct = Math.abs(p.y - dragStart.y);
+    onRegionChange({ xPct, yPct, wPct, hPct });
+  };
+  const handleMouseUp = () => setDragStart(null);
+
+  return (
+    <div className="rounded-2xl bg-slate-800/40 border border-slate-800 p-4 space-y-3 relative z-10">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span className="text-sm font-bold text-white flex items-center gap-2">
+          <Image className="w-4 h-4 text-pink-400" /> Watermark Region — draw a box over the logo
+        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onModeChange('blur')}
+            className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+              mode === 'blur' ? 'bg-pink-950 border-pink-500/50 text-pink-300' : 'bg-slate-900 border-slate-700 text-slate-400'
+            }`}
+          >
+            Blur
+          </button>
+          <button
+            onClick={() => onModeChange('delogo')}
+            className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+              mode === 'delogo' ? 'bg-pink-950 border-pink-500/50 text-pink-300' : 'bg-slate-900 border-slate-700 text-slate-400'
+            }`}
+          >
+            Delogo
+          </button>
+        </div>
+      </div>
+
+      {thumbnail ? (
+        <div
+          ref={containerRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          className="relative w-full aspect-video rounded-xl overflow-hidden border border-slate-700 cursor-crosshair select-none"
+        >
+          <img src={thumbnail} alt="preview" className="w-full h-full object-cover pointer-events-none" draggable={false} />
+          <div
+            className="absolute border-2 border-pink-400 bg-pink-500/20 pointer-events-none"
+            style={{
+              left: `${region.xPct}%`, top: `${region.yPct}%`,
+              width: `${region.wPct}%`, height: `${region.hPct}%`
+            }}
+          />
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">Analyze a video first to draw the region on its real thumbnail — or just type coordinates below.</p>
+      )}
+
+      <div className="grid grid-cols-4 gap-2">
+        {(['xPct', 'yPct', 'wPct', 'hPct'] as const).map((key) => (
+          <div key={key}>
+            <label className="text-[9px] text-slate-500 font-mono block mb-1 uppercase">{key.replace('Pct', '')} %</label>
+            <input
+              type="number" min={0} max={100} step={1}
+              value={Math.round(region[key])}
+              onChange={(e) => onRegionChange({ ...region, [key]: Number(e.target.value) })}
+              className="w-full px-2 py-1.5 rounded-lg bg-[#080b11] border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-pink-500"
+            />
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-slate-500 leading-relaxed">
+        Real ffmpeg filter applied after download: <strong>Blur</strong> uses a crop+boxblur+overlay chain on just
+        that region; <strong>Delogo</strong> uses ffmpeg's delogo filter, which interpolates from surrounding pixels
+        (better for static logos on simple backgrounds). Coordinates are percentages of the real frame, so they
+        scale correctly to whatever resolution you download.
+      </p>
+    </div>
+  );
+};
+
 export const DEFAULT_SMART_TOOLS: SmartToolsState = {
   trimEnabled: false,
   trimStart: '00:00:00',
@@ -266,6 +395,8 @@ export const DEFAULT_SMART_TOOLS: SmartToolsState = {
   audioNormalize: true,
   chapterMarkers: true,
   watermarkRemove: false,
+  watermarkMode: 'blur',
+  watermarkRegion: { xPct: 75, yPct: 5, wPct: 20, hPct: 10 },
   noiseReduction: false,
   upscaleAI: false,
   splitByChapters: false,

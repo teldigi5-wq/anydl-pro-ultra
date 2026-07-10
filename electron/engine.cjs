@@ -315,6 +315,23 @@ function buildDownloadArgs(params) {
   const postArgs = [];
   if (smartTools?.audioNormalize) postArgs.push('-af', 'loudnorm=I=-14:TP=-1.5:LRA=11');
   if (smartTools?.noiseReduction) postArgs.push('-af', 'afftdn=nf=-25');
+
+  if (smartTools?.watermarkRemove && smartTools.watermarkRegion) {
+    const r = smartTools.watermarkRegion;
+    const x = Math.max(0, Math.min(1, r.xPct / 100));
+    const y = Math.max(0, Math.min(1, r.yPct / 100));
+    const w = Math.max(0.01, Math.min(1, r.wPct / 100));
+    const h = Math.max(0.01, Math.min(1, r.hPct / 100));
+
+    if (smartTools.watermarkMode === 'delogo') {
+      postArgs.push('-vf', `delogo=x=iw*${x}:y=ih*${y}:w=iw*${w}:h=ih*${h}`);
+    } else {
+      // Real crop -> boxblur -> overlay chain: blurs only the selected region, leaves the rest untouched.
+      const filterComplex = `[0:v]split=2[bg][fg];[fg]crop=iw*${w}:ih*${h}:iw*${x}:ih*${y},boxblur=12:3[blurred];[bg][blurred]overlay=iw*${x}:ih*${y}`;
+      postArgs.push('-filter_complex', `"${filterComplex}"`);
+    }
+  }
+
   if (postArgs.length) {
     args.push('--postprocessor-args', `ffmpeg:${postArgs.join(' ')}`);
   }

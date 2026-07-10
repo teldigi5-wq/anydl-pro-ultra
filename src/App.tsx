@@ -469,7 +469,7 @@ export default function App() {
                   selectedLanguages={selectedSubLanguages}
                   setSelectedLanguages={setSelectedSubLanguages}
                 />
-                <SmartToolbox tools={smartTools} setTools={setSmartTools} />
+                <SmartToolbox tools={smartTools} setTools={setSmartTools} previewThumbnail={currentVideo?.thumbnailUrl} />
                 <BatchDownloader
                   items={batchItems}
                   onAddItems={handleBatchAdd}
