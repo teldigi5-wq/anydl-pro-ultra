@@ -76,6 +76,12 @@ export interface DetectedMediaEvent {
   timestamp: number;
 }
 
+export interface GpuCheckResult {
+  hasCapableGpu: boolean;
+  gpus: { vendor?: string; model?: string; vramMB: number }[];
+  note: string | null;
+}
+
 interface AnydlBridge {
   isElectron: true;
   platform: string;
@@ -86,6 +92,7 @@ interface AnydlBridge {
   showInFolder(p: string): Promise<boolean>;
   getEngineInfo(): Promise<EngineInfo>;
   updateYtDlp(): Promise<{ ok: boolean; message: string }>;
+  checkGpu(): Promise<GpuCheckResult>;
   analyzeUrl(url: string): Promise<{ ok: true; data: VideoAnalysisResult } | { ok: false; error: string }>;
   startDownload(task: DownloadStartTask): Promise<{ ok: boolean; id: string }>;
   cancelDownload(id: string): Promise<{ ok: boolean }>;
@@ -141,6 +148,10 @@ export const api = {
   async updateYtDlp() {
     if (!window.anydl) return { ok: false, message: 'Not running inside the desktop app.' };
     return window.anydl.updateYtDlp();
+  },
+  async checkGpu(): Promise<GpuCheckResult | null> {
+    if (!window.anydl) return null;
+    return window.anydl.checkGpu();
   },
   async analyzeUrl(url: string) {
     if (!window.anydl) {

@@ -43,6 +43,17 @@ function getPaths(settings) {
   };
 }
 
+function getRealesrganPaths() {
+  const dir = path.join(bundledBinDir(), 'realesrgan');
+  const exe = path.join(dir, exeName('realesrgan-ncnn-vulkan'));
+  const modelsDir = path.join(dir, 'models');
+  return {
+    exe,
+    modelsDir,
+    available: fs.existsSync(exe) && fs.existsSync(modelsDir)
+  };
+}
+
 function getVersion(binPath) {
   return new Promise((resolve) => {
     execFile(binPath, ['-version' in {} ? '-version' : '--version'], { timeout: 8000 }, () => {});
@@ -435,8 +446,137 @@ function isActive(id) {
   return activeProcs.has(id);
 }
 
+// ---------------------------------------------------------------------------
+// AI Upscale (Real-ESRGAN): real frame extraction -> real neural upscaling ->
+// real ffmpeg reassembly. This is genuinely slow, especially without a GPU,
+// so we gate it on a real (heuristic) GPU capability check first.
+// ---------------------------------------------------------------------------
+async function checkGpuCapability() {
+  try {
+    const si = require('systeminformation');
+    const graphics = await si.graphics();
+    const controllers = graphics.controllers || [];
+    const usable = controllers.filter(c => {
+      const name = `${c.vendor || ''} ${c.model || ''}`.toLowerCase();
+      const isVirtual = /microsoft basic|vmware|virtualbox|parallels|remote desktop/i.test(name);
+      const hasMemory = (c.vram || c.vramDynamic || 0) >= 512;
+      return !isVirtual && hasMemory;
+    });
+    return {
+      hasCapableGpu: usable.length > 0,
+      gpus: controllers.map(c => ({ vendor: c.vendor, model: c.model, vramMB: c.vram || c.vramDynamic || 0 })),
+      note: usable.length > 0
+        ? null
+        : 'No dedicated GPU with usable video memory was detected. Real-ESRGAN needs Vulkan GPU acceleration to run at a reasonable speed — on CPU it can take many minutes per short clip, so this is disabled.'
+    };
+  } catch (e) {
+    return { hasCapableGpu: false, gpus: [], note: 'Could not query GPU info: ' + e.message };
+  }
+}
+
+function ffprobeGetFps(ffprobePath, inputPath) {
+  return new Promise((resolve) => {
+    execFile(ffprobePath, [
+      '-v', 'error', '-select_streams', 'v:0',
+      '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', inputPath
+    ], { timeout: 15000 }, (err, stdout) => {
+      if (err) return resolve(30);
+      const raw = (stdout || '').trim(); // e.g. "30000/1001"
+      const [num, den] = raw.split('/').map(Number);
+      const fps = den ? num / den : Number(raw);
+      resolve(Number.isFinite(fps) && fps > 0 ? fps : 30);
+    });
+  });
+}
+
+function countFiles(dir) {
+  try { return fs.readdirSync(dir).filter(f => f.endsWith('.png')).length; } catch { return 0; }
+}
+
+async function runUpscale(id, inputPath, settings, onEvent) {
+  const esrgan = getRealesrganPaths();
+  if (!esrgan.available) {
+    onEvent({ id, type: 'status', status: 'completed', message: '[upscale] Real-ESRGAN binaries not found — skipping upscale, original file kept.' });
+    return;
+  }
+  const gpuCheck = await checkGpuCapability();
+  if (!gpuCheck.hasCapableGpu) {
+    onEvent({ id, type: 'status', status: 'completed', message: `[upscale] Skipped — ${gpuCheck.note}` });
+    return;
+  }
+
+  const { ffmpeg, ffprobe } = getPaths(settings);
+  const workDir = path.join(os.tmpdir(), 'anydl-upscale-' + id);
+  const framesDir = path.join(workDir, 'frames');
+  const upscaledDir = path.join(workDir, 'upscaled');
+  fs.mkdirSync(framesDir, { recursive: true });
+  fs.mkdirSync(upscaledDir, { recursive: true });
+
+  const outputPath = inputPath.replace(/(\.[^.]+)$/, '_upscaled$1');
+
+  const cleanup = () => { try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* ignore */ } };
+
+  try {
+    onEvent({ id, type: 'status', status: 'upscaling', message: '[upscale] Extracting frames with ffmpeg...' });
+    const fps = await ffprobeGetFps(ffprobe.path, inputPath);
+
+    await new Promise((resolve, reject) => {
+      const p = spawn(ffmpeg.path, ['-y', '-i', inputPath, path.join(framesDir, 'frame_%06d.png')], { windowsHide: true });
+      p.on('close', (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg frame extraction exited ${code}`)));
+      p.on('error', reject);
+    });
+
+    const totalFrames = countFiles(framesDir);
+    if (totalFrames === 0) throw new Error('No frames extracted — unsupported or corrupt video file.');
+
+    onEvent({ id, type: 'status', status: 'upscaling', message: `[upscale] Running Real-ESRGAN on ${totalFrames} frames (this is slow — real neural upscaling, not instant)...` });
+
+    const esrganProc = spawn(esrgan.exe, [
+      '-i', framesDir, '-o', upscaledDir,
+      '-n', 'realesrgan-x4plus', '-s', '2',
+      '-m', esrgan.modelsDir
+    ], { windowsHide: true });
+
+    const progressTimer = setInterval(() => {
+      const done = countFiles(upscaledDir);
+      const percent = totalFrames ? Math.min(99, Math.round((done / totalFrames) * 100)) : 0;
+      onEvent({ id, type: 'status', status: 'upscaling', message: `[upscale] Real-ESRGAN: ${done}/${totalFrames} frames (${percent}%)` });
+    }, 2000);
+
+    await new Promise((resolve, reject) => {
+      esrganProc.on('close', (code) => {
+        clearInterval(progressTimer);
+        code === 0 ? resolve() : reject(new Error(`Real-ESRGAN exited with code ${code} (often means no compatible Vulkan GPU driver)`));
+      });
+      esrganProc.on('error', (err) => { clearInterval(progressTimer); reject(err); });
+    });
+
+    onEvent({ id, type: 'status', status: 'upscaling', message: '[upscale] Re-encoding upscaled frames with ffmpeg...' });
+
+    await new Promise((resolve, reject) => {
+      const p = spawn(ffmpeg.path, [
+        '-y', '-r', String(fps), '-i', path.join(upscaledDir, 'frame_%06d.png'),
+        '-i', inputPath,
+        '-map', '0:v:0', '-map', '1:a:0?',
+        '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
+        '-c:a', 'copy', '-shortest', outputPath
+      ], { windowsHide: true });
+      p.on('close', (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg re-encode exited ${code}`)));
+      p.on('error', reject);
+    });
+
+    cleanup();
+    onEvent({ id, type: 'complete', status: 'completed', filePath: outputPath, message: '[upscale] Done — real AI-upscaled file saved.' });
+  } catch (e) {
+    cleanup();
+    onEvent({ id, type: 'status', status: 'completed', filePath: inputPath, message: `[upscale] Failed, original file kept: ${e.message}` });
+  }
+}
+
 module.exports = {
   getEngineInfo,
+  checkGpuCapability,
+  runUpscale,
   updateYtDlp,
   analyzeUrl,
   startDownload,

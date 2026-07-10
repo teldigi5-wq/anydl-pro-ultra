@@ -206,6 +206,7 @@ ipcMain.handle('shell:showInFolder', (_e, targetPath) => {
 
 ipcMain.handle('engine:info', () => engine.getEngineInfo(store.getAll()));
 ipcMain.handle('engine:updateYtDlp', () => engine.updateYtDlp(store.getAll()));
+ipcMain.handle('engine:gpuCheck', () => engine.checkGpuCapability());
 
 ipcMain.handle('video:analyze', async (_e, url) => {
   try {
@@ -216,13 +217,20 @@ ipcMain.handle('video:analyze', async (_e, url) => {
   }
 });
 
+function makeDownloadEventHandler(task, settings) {
+  return (evt) => {
+    send('download:event', evt);
+    if (evt.type === 'complete' && evt.filePath && task.smartTools?.upscaleAI) {
+      engine.runUpscale(task.id, evt.filePath, settings, (uEvt) => send('download:event', uEvt));
+    }
+  };
+}
+
 ipcMain.handle('download:start', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
   const id = task.id;
-  engine.startDownload(id, { ...task, outputDir }, settings, (evt) => {
-    send('download:event', evt);
-  });
+  engine.startDownload(id, { ...task, outputDir }, settings, makeDownloadEventHandler(task, settings));
   return { ok: true, id };
 });
 
@@ -231,7 +239,7 @@ ipcMain.handle('download:pause', (_e, id) => ({ ok: engine.pauseDownload(id) }))
 ipcMain.handle('download:resume', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
-  engine.startDownload(task.id, { ...task, outputDir }, settings, (evt) => send('download:event', evt));
+  engine.startDownload(task.id, { ...task, outputDir }, settings, makeDownloadEventHandler(task, settings));
   return { ok: true };
 });
 

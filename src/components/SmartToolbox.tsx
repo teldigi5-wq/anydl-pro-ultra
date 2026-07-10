@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Wrench, Scissors, Volume2, Image, Clock, Shield,
-  Sparkles, FileVideo, Gauge, Wand2, Layers, Check
+  Sparkles, FileVideo, Gauge, Wand2, Layers, Check, AlertTriangle
 } from 'lucide-react';
+import { api, isElectron } from '../lib/api';
 
 export interface SmartToolsState {
   trimEnabled: boolean;
@@ -67,8 +68,8 @@ const TOOL_DEFS: Array<{
   {
     key: 'upscaleAI',
     icon: <Sparkles className="w-4 h-4" />,
-    title: 'AI Upscale Assist',
-    desc: 'Not wired to the engine yet — real AI upscaling needs a bundled ML model. Coming soon.',
+    title: 'AI Upscale (Real-ESRGAN)',
+    desc: 'Real neural upscale after download — needs a real GPU, runs after the file finishes',
     color: 'amber',
     type: 'toggle'
   },
@@ -100,9 +101,24 @@ const TOOL_DEFS: Array<{
 
 export const SmartToolbox: React.FC<SmartToolboxProps> = ({ tools, setTools }) => {
   const [expanded, setExpanded] = useState(true);
+  const [gpuChecked, setGpuChecked] = useState(false);
+  const [hasCapableGpu, setHasCapableGpu] = useState(true);
+  const [gpuNote, setGpuNote] = useState<string | null>(null);
   const activeCount = TOOL_DEFS.filter(t => tools[t.key] === true).length;
 
+  useEffect(() => {
+    if (!isElectron) { setGpuChecked(true); return; }
+    api.checkGpu().then((res) => {
+      if (res) {
+        setHasCapableGpu(res.hasCapableGpu);
+        setGpuNote(res.note);
+      }
+      setGpuChecked(true);
+    });
+  }, []);
+
   const toggle = (key: keyof SmartToolsState) => {
+    if (key === 'upscaleAI' && !hasCapableGpu && !tools.upscaleAI) return; // blocked, no capable GPU
     setTools({ ...tools, [key]: !tools[key] });
   };
 
@@ -189,33 +205,46 @@ export const SmartToolbox: React.FC<SmartToolboxProps> = ({ tools, setTools }) =
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 relative z-10">
           {TOOL_DEFS.map((tool, i) => {
             const active = Boolean(tools[tool.key]);
+            const isUpscale = tool.key === 'upscaleAI';
+            const blocked = isUpscale && gpuChecked && !hasCapableGpu;
             return (
               <motion.button
                 key={tool.key}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                whileHover={{ y: -3, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={blocked ? {} : { y: -3, scale: 1.02 }}
+                whileTap={blocked ? {} : { scale: 0.98 }}
                 onClick={() => toggle(tool.key)}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
-                  active
-                    ? 'bg-cyan-950/50 border-cyan-500/50 shadow-md shadow-cyan-500/10'
-                    : 'bg-slate-800/40 border-slate-800 hover:border-slate-700'
+                disabled={blocked}
+                title={blocked ? gpuNote || 'No capable GPU detected' : undefined}
+                className={`p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden ${
+                  blocked
+                    ? 'bg-slate-900/40 border-slate-800/60 opacity-50 cursor-not-allowed'
+                    : active
+                    ? 'bg-cyan-950/50 border-cyan-500/50 shadow-md shadow-cyan-500/10 cursor-pointer'
+                    : 'bg-slate-800/40 border-slate-800 hover:border-slate-700 cursor-pointer'
                 }`}
               >
-                {active && (
+                {active && !blocked && (
                   <div className="absolute top-2 right-2">
                     <Check className="w-3.5 h-3.5 text-cyan-400" />
                   </div>
                 )}
+                {blocked && (
+                  <div className="absolute top-2 right-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
+                )}
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${
-                  active ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'
+                  active && !blocked ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'
                 }`}>
                   {tool.icon}
                 </div>
                 <h4 className="text-xs font-bold text-white leading-tight">{tool.title}</h4>
-                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{tool.desc}</p>
+                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                  {blocked ? 'No capable GPU detected — disabled. Hover for details.' : tool.desc}
+                </p>
               </motion.button>
             );
           })}

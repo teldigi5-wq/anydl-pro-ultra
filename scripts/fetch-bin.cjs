@@ -17,6 +17,7 @@ const { execFileSync } = require('child_process');
 const OUT_DIR = path.join(__dirname, '..', 'resources', 'bin');
 const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
 const FFMPEG_ZIP_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip';
+const REALESRGAN_ZIP_URL = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
 const ESRGAN_ZIP_URL = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
 
 function download(url, dest, redirects = 0) {
@@ -63,6 +64,25 @@ async function main() {
     ], { stdio: 'inherit' });
   }
   fs.unlinkSync(zipPath);
+
+  console.log('[fetch-bin] Downloading Real-ESRGAN (AI upscaler) ...');
+  const esrganDir = path.join(OUT_DIR, 'realesrgan');
+  fs.mkdirSync(esrganDir, { recursive: true });
+  const esrganZip = path.join(OUT_DIR, 'realesrgan.zip');
+  await download(REALESRGAN_ZIP_URL, esrganZip);
+  try {
+    execFileSync('unzip', ['-o', '-j', esrganZip,
+      'realesrgan-ncnn-vulkan.exe', 'vcomp140.dll', 'vcomp140d.dll',
+      '-d', esrganDir], { stdio: 'inherit' });
+    execFileSync('unzip', ['-o', esrganZip, 'models/*', '-d', esrganDir], { stdio: 'inherit' });
+    // The zip stores models/ inside no subfolder, so it lands at esrganDir/models directly.
+  } catch {
+    execFileSync('powershell', ['-Command',
+      `Expand-Archive -Force '${esrganZip}' '${esrganDir}'`
+    ], { stdio: 'inherit' });
+  }
+  fs.unlinkSync(esrganZip);
+  console.log('[fetch-bin] Real-ESRGAN OK');
 
   console.log('[fetch-bin] Done. Binaries in', OUT_DIR);
 }

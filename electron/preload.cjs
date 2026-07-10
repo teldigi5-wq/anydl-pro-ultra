@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('anydl', {
   // Engine
   getEngineInfo: () => ipcRenderer.invoke('engine:info'),
   updateYtDlp: () => ipcRenderer.invoke('engine:updateYtDlp'),
+  checkGpu: () => ipcRenderer.invoke('engine:gpuCheck'),
 
   // Analysis
   analyzeUrl: (url) => ipcRenderer.invoke('video:analyze', url),
