@@ -129,7 +129,7 @@ function estimateBitrateKbps(height) {
 
 function runYtDlpJSON(ytdlpPath, url) {
   return new Promise((resolve, reject) => {
-    const args = ['-J', '--no-warnings', '--no-playlist', '--flat-playlist=false', url];
+    const args = ['-J', '--no-warnings', '--no-playlist', url];
     execFile(ytdlpPath, args, { maxBuffer: 64 * 1024 * 1024, timeout: 45000 }, (err, stdout, stderr) => {
       if (err) {
         const msg = (stderr || err.message || 'yt-dlp failed').split('\n').filter(Boolean).pop() || 'yt-dlp failed';
