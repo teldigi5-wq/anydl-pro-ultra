@@ -79,7 +79,8 @@ export interface BatchDownloadItem {
 export interface AgentLog {
   id: string;
   timestamp: string;
-  agentName: 'ScoutAgent' | 'CodecMaster' | 'QueueGuard' | 'MediaSmith' | 'SpeedDaemon' | 'ProxyGuard';
+  agentName: 'ScoutAgent' | 'CodecMaster' | 'QueueGuard' | 'MediaSmith' | 'SpeedDaemon' | 'ProxyGuard'
+    | 'SponsorHunter' | 'WatermarkWiper' | 'UpscaleEngine' | 'SubtitleSync' | 'ThumbnailArtist';
   agentRole: string;
   message: string;
   status: 'info' | 'success' | 'warning' | 'action' | 'error';

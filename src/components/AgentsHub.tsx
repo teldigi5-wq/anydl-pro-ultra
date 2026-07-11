@@ -29,9 +29,34 @@ const agentsList = [
     desc: 'Parses real stdout from the running yt-dlp process — real percent, speed, and ETA.'
   },
   {
-    name: 'MediaSmith', role: 'Post-Processing & Tagging', avatar: '🎬',
+    name: 'SubtitleSync', role: 'Subtitle Fetch & Embed', avatar: '💬',
+    color: 'from-violet-500 to-fuchsia-600',
+    desc: 'Real --write-subs / --embed-subs pass — converts and embeds real caption tracks.'
+  },
+  {
+    name: 'ThumbnailArtist', role: 'Thumbnail & Metadata Tagger', avatar: '🖼️',
     color: 'from-amber-500 to-orange-600',
-    desc: 'Real ffmpeg pass: embeds thumbnail/metadata, merges subtitles, applies SponsorBlock.'
+    desc: 'Converts and embeds the real thumbnail, tags title/uploader/date metadata.'
+  },
+  {
+    name: 'SponsorHunter', role: 'SponsorBlock Segment Remover', avatar: '🎯',
+    color: 'from-red-500 to-rose-600',
+    desc: 'Real --sponsorblock-remove pass — cuts sponsor/intro/outro segments using community data.'
+  },
+  {
+    name: 'WatermarkWiper', role: 'Region Blur / Delogo Filter', avatar: '🧹',
+    color: 'from-pink-500 to-rose-600',
+    desc: 'Runs the real ffmpeg crop+boxblur+overlay or delogo filter on the region you draw.'
+  },
+  {
+    name: 'UpscaleEngine', role: 'Real-ESRGAN Neural Upscaler', avatar: '🔬',
+    color: 'from-sky-500 to-indigo-600',
+    desc: 'Extracts frames, runs the real Real-ESRGAN model, re-encodes — genuinely slow, genuinely real.'
+  },
+  {
+    name: 'ProxyGuard', role: 'Reliability & Retry Watcher', avatar: '🛡️',
+    color: 'from-slate-500 to-slate-700',
+    desc: 'Watches for real retry/error output and flags connection issues as they happen.'
   }
 ];
 

@@ -217,9 +217,9 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
                         <button
                           onClick={(e) => { e.stopPropagation(); onTogglePause(task.id); }}
                           className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all"
-                          title={isDownloading ? 'Pause' : 'Resume'}
+                          title={isDownloading ? 'Pause' : task.status === 'error' ? 'Retry' : 'Resume'}
                         >
-                          {isDownloading ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
+                          {isDownloading ? <Pause className="w-4 h-4" /> : <Play className={`w-4 h-4 ${task.status === 'error' ? 'text-amber-400' : 'text-emerald-400'}`} />}
                         </button>
                       )}
                       <div className="flex flex-col gap-0.5">

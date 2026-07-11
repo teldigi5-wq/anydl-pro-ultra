@@ -28,7 +28,8 @@ const DEFAULTS = {
     keepOriginalAudio: false,
     multiAudioTracks: false
   },
-  useSystemYtDlp: false
+  useSystemYtDlp: false,
+  clipboardWatch: false
 };
 
 function filePath() {
@@ -64,4 +65,38 @@ function set(key, value) {
   return data;
 }
 
-module.exports = { getAll, set, DEFAULTS };
+// ---------------------------------------------------------------------------
+// Download history — a separate small JSON file so it doesn't bloat/slow
+// down every settings write. Survives app restarts.
+// ---------------------------------------------------------------------------
+function historyFilePath() {
+  return path.join(app.getPath('userData'), 'history.json');
+}
+
+function getHistory() {
+  try {
+    return JSON.parse(fs.readFileSync(historyFilePath(), 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
+function addHistoryEntry(entry) {
+  const history = getHistory();
+  history.unshift(entry);
+  const capped = history.slice(0, 200);
+  try {
+    fs.mkdirSync(path.dirname(historyFilePath()), { recursive: true });
+    fs.writeFileSync(historyFilePath(), JSON.stringify(capped, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[store] failed to persist history', e);
+  }
+  return capped;
+}
+
+function clearHistory() {
+  try { fs.writeFileSync(historyFilePath(), '[]', 'utf-8'); } catch { /* ignore */ }
+  return [];
+}
+
+module.exports = { getAll, set, DEFAULTS, getHistory, addHistoryEntry, clearHistory };

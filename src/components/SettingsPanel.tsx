@@ -2,9 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings, FolderOpen, Bell, Keyboard, Monitor, HardDrive,
-  Download, Zap, Check, Cpu
+  Download, Zap, Check, Cpu, Clipboard, History, Trash2, FileVideo
 } from 'lucide-react';
-import { api, isElectron } from '../lib/api';
+import { api, isElectron, HistoryEntry } from '../lib/api';
 
 interface SettingsPanelProps {
   downloadPath: string;
@@ -16,6 +16,10 @@ interface SettingsPanelProps {
   maxConcurrent: number;
   setMaxConcurrent: (n: number) => void;
   isWindowsConnected: boolean;
+  clipboardWatch: boolean;
+  setClipboardWatch: (v: boolean) => void;
+  history: HistoryEntry[];
+  onClearHistory: () => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -27,11 +31,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setAutoStart,
   maxConcurrent,
   setMaxConcurrent,
-  isWindowsConnected
+  isWindowsConnected,
+  clipboardWatch,
+  setClipboardWatch,
+  history,
+  onClearHistory
 }) => {
   const chooseFolder = async () => {
     const picked = await api.chooseFolder();
     if (picked) setDownloadPath(picked);
+  };
+  const formatWhen = (ts: number) => {
+    const d = new Date(ts);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -134,6 +146,25 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
               <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Real Windows login-item registration</p>
             </button>
+
+            <button
+              onClick={() => setClipboardWatch(!clipboardWatch)}
+              disabled={!isElectron}
+              className="p-3.5 rounded-2xl border text-left transition-all cursor-pointer disabled:opacity-40 sm:col-span-2"
+              style={{
+                background: clipboardWatch ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-elevated)',
+                borderColor: clipboardWatch ? 'var(--accent)' : 'var(--border-color)'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Clipboard className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs font-bold text-white">Clipboard Auto-Watch</span>
+                {clipboardWatch && <Check className="w-3.5 h-3.5 ml-auto" style={{ color: 'var(--success)' }} />}
+              </div>
+              <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                Real background clipboard poll — copy a link anywhere and it auto-analyzes + downloads, no need to switch back to the app
+              </p>
+            </button>
           </div>
 
           <div className="p-3 rounded-2xl border flex items-center gap-3"
@@ -162,6 +193,56 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             See the <strong>Windows Bridge</strong> tab for live yt-dlp/ffmpeg version info and an update button.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-3xl border p-6 space-y-3"
+        style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <History className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Download History
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+              persisted to disk
+            </span>
+          </h3>
+          {history.length > 0 && (
+            <button
+              onClick={onClearHistory}
+              className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+            >
+              <Trash2 className="w-3 h-3" /> Clear
+            </button>
+          )}
+        </div>
+        {history.length === 0 ? (
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Nothing here yet — completed downloads are recorded here automatically and survive an app restart.
+          </p>
+        ) : (
+          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+            {history.map((h) => (
+              <div key={h.id} className="flex items-center gap-3 p-2.5 rounded-xl"
+                style={{ background: 'var(--bg-elevated)' }}>
+                <FileVideo className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white truncate">{h.title}</p>
+                  <p className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    {formatWhen(h.completedAt)}{h.resolution ? ` · ${h.resolution}` : ''}
+                  </p>
+                </div>
+                {h.filePath && (
+                  <button
+                    onClick={() => api.showInFolder(h.filePath!)}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg shrink-0"
+                    style={{ background: 'color-mix(in srgb, var(--accent) 15%, transparent)', color: 'var(--accent)' }}
+                  >
+                    Show
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-3xl border p-6"

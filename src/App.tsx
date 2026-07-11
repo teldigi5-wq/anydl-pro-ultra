@@ -47,11 +47,23 @@ function parseEtaToSeconds(eta: string | null | undefined): number {
 }
 
 function agentForLog(message: string): { agentName: AgentLog['agentName']; agentRole: string } {
+  if (/sponsorblock|\[SponsorBlock\]/i.test(message)) {
+    return { agentName: 'SponsorHunter', agentRole: 'SponsorBlock Segment Remover' };
+  }
+  if (/delogo|boxblur|filter_complex|watermark/i.test(message)) {
+    return { agentName: 'WatermarkWiper', agentRole: 'Region Blur / Delogo Filter' };
+  }
+  if (/upscale|realesrgan|real-esrgan/i.test(message)) {
+    return { agentName: 'UpscaleEngine', agentRole: 'Real-ESRGAN Neural Upscaler' };
+  }
+  if (/\[EmbedSubtitle\]|\[SubtitlesConvertor\]|subtitle/i.test(message)) {
+    return { agentName: 'SubtitleSync', agentRole: 'Subtitle Fetch & Embed' };
+  }
+  if (/thumbnail|EmbedThumbnail|convert-thumbnails/i.test(message)) {
+    return { agentName: 'ThumbnailArtist', agentRole: 'Thumbnail & Metadata Tagger' };
+  }
   if (/\[Merger\]|\[ffmpeg\]|\[VideoConvertor\]|\[Metadata\]|CRF|postprocessor/i.test(message)) {
     return { agentName: 'CodecMaster', agentRole: 'CRF & Merge Engine' };
-  }
-  if (/\[EmbedSubtitle\]|subtitle|\[SubtitlesConvertor\]/i.test(message)) {
-    return { agentName: 'MediaSmith', agentRole: 'Subtitle & Metadata Embedder' };
   }
   if (/\[download\]/i.test(message)) {
     return { agentName: 'SpeedDaemon', agentRole: 'Network Accelerator' };
@@ -77,6 +89,8 @@ export default function App() {
   const [downloadPath, setDownloadPathState] = useState('');
   const [notifications, setNotificationsState] = useState(true);
   const [autoStart, setAutoStartState] = useState(true);
+  const [clipboardWatch, setClipboardWatchState] = useState(false);
+  const [history, setHistory] = useState<import('./lib/api').HistoryEntry[]>([]);
   const [maxConcurrent, setMaxConcurrentState] = useState(3);
 
   // Speed booster state
@@ -124,9 +138,11 @@ export default function App() {
         setCustomConcurrent(settings.customConcurrent);
         setCustomBuffer(settings.customBuffer);
         setCustomRetries(settings.customRetries);
+        setClipboardWatchState(!!settings.clipboardWatch);
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
       }
       setSettingsLoaded(true);
+      api.getHistory().then(setHistory);
 
       const info = await api.getEngineInfo();
       const nowTs = new Date().toLocaleTimeString();
@@ -159,55 +175,91 @@ export default function App() {
   }, []);
 
   // -------------------------------------------------------------------
-  // Real download progress/log events from the yt-dlp child process
+  // Real download progress/log events from the yt-dlp child process.
+  // yt-dlp can emit many lines per second; applying each one as its own
+  // React state update was the real cause of scroll jank during active
+  // downloads. We buffer incoming events in refs and flush them to state
+  // in batches on a fixed tick instead.
   // -------------------------------------------------------------------
+  const pendingProgressRef = useRef<Map<string, DownloadEvent>>(new Map());
+  const pendingLogsRef = useRef<Map<string, string[]>>(new Map());
+  const pendingAgentLogsRef = useRef<AgentLog[]>([]);
+  const immediateEventsRef = useRef<DownloadEvent[]>([]);
+
   useEffect(() => {
-    const unsubscribe = api.onDownloadEvent((evt: DownloadEvent) => {
-      if (evt.type === 'log' && evt.message) {
-        const { agentName, agentRole } = agentForLog(evt.message);
-        setAgentLogs(prev => [...prev.slice(-80), {
-          id: `log-${evt.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          timestamp: new Date().toLocaleTimeString(),
-          agentName, agentRole, message: evt.message!, status: 'info'
-        }]);
+    const flush = () => {
+      if (pendingProgressRef.current.size === 0 && pendingLogsRef.current.size === 0 && immediateEventsRef.current.length === 0) return;
+
+      const progressById = pendingProgressRef.current;
+      const logsById = pendingLogsRef.current;
+      const immediate = immediateEventsRef.current;
+      pendingProgressRef.current = new Map();
+      pendingLogsRef.current = new Map();
+      immediateEventsRef.current = [];
+
+      if (pendingAgentLogsRef.current.length) {
+        const batch = pendingAgentLogsRef.current;
+        pendingAgentLogsRef.current = [];
+        setAgentLogs(prev => [...prev.slice(-80), ...batch].slice(-80));
       }
 
       setTasks(prev => prev.map(task => {
-        if (task.id !== evt.id) return task;
-        const nextLogs = evt.message ? [...task.logs.slice(-60), evt.message] : task.logs;
+        let next = task;
+        const extraLogs = logsById.get(task.id);
+        const progress = progressById.get(task.id);
+        const immediateForTask = immediate.filter(e => e.id === task.id);
 
-        switch (evt.type) {
-          case 'log':
-            return { ...task, logs: nextLogs };
-          case 'progress':
-            return {
-              ...task,
-              status: 'downloading',
-              progressPercent: evt.percent ?? task.progressPercent,
-              totalSizeMB: evt.totalMB ?? task.totalSizeMB,
-              downloadedMB: evt.downloadedMB ?? task.downloadedMB,
-              downloadSpeedMbps: evt.speedMBps ?? task.downloadSpeedMbps,
-              etaSeconds: parseEtaToSeconds(evt.eta),
-              logs: nextLogs
-            };
-          case 'status':
-            return { ...task, status: (evt.status as DownloadTask['status']) || task.status, logs: nextLogs };
-          case 'complete':
-            if (notifications) addToast(`Download complete: ${task.title.slice(0, 40)}`, 'success');
-            return {
-              ...task, status: 'completed', progressPercent: 100,
-              downloadedMB: task.totalSizeMB, filePath: evt.filePath, logs: nextLogs,
-              completedAt: new Date()
-            };
-          case 'error':
-            if (notifications) addToast(`Download failed: ${task.title.slice(0, 40)}`, 'error');
-            return { ...task, status: 'error', errorMessage: evt.message, logs: nextLogs };
-          default:
-            return task;
+        if (extraLogs?.length) next = { ...next, logs: [...next.logs.slice(-60), ...extraLogs].slice(-60) };
+        if (progress) {
+          next = {
+            ...next,
+            status: 'downloading',
+            progressPercent: progress.percent ?? next.progressPercent,
+            totalSizeMB: progress.totalMB ?? next.totalSizeMB,
+            downloadedMB: progress.downloadedMB ?? next.downloadedMB,
+            downloadSpeedMbps: progress.speedMBps ?? next.downloadSpeedMbps,
+            etaSeconds: parseEtaToSeconds(progress.eta)
+          };
         }
+        for (const evt of immediateForTask) {
+          if (evt.type === 'status') next = { ...next, status: (evt.status as DownloadTask['status']) || next.status };
+          else if (evt.type === 'complete') {
+            if (notifications) addToast(`Download complete: ${next.title.slice(0, 40)}`, 'success');
+            next = { ...next, status: 'completed', progressPercent: 100, downloadedMB: next.totalSizeMB, filePath: evt.filePath, completedAt: new Date() };
+            api.getHistory().then(setHistory);
+          } else if (evt.type === 'error') {
+            if (notifications) addToast(`Download failed: ${next.title.slice(0, 40)}`, 'error');
+            next = { ...next, status: 'error', errorMessage: evt.message };
+          }
+        }
+        return next;
       }));
+    };
+
+    const timer = window.setInterval(flush, 250);
+
+    const unsubscribe = api.onDownloadEvent((evt: DownloadEvent) => {
+      if (evt.type === 'log' && evt.message) {
+        const { agentName, agentRole } = agentForLog(evt.message);
+        pendingAgentLogsRef.current.push({
+          id: `log-${evt.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          timestamp: new Date().toLocaleTimeString(),
+          agentName, agentRole, message: evt.message, status: 'info'
+        });
+        const arr = pendingLogsRef.current.get(evt.id) || [];
+        arr.push(evt.message);
+        pendingLogsRef.current.set(evt.id, arr);
+        return;
+      }
+      if (evt.type === 'progress') {
+        pendingProgressRef.current.set(evt.id, evt); // only the latest progress per task matters
+        return;
+      }
+      // status/complete/error are infrequent and matter for correctness — apply on the next tick, not dropped/coalesced.
+      immediateEventsRef.current.push(evt);
     });
-    return unsubscribe;
+
+    return () => { unsubscribe(); window.clearInterval(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifications]);
 
@@ -244,6 +296,26 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // -------------------------------------------------------------------
+  // Clipboard auto-watch: main process polls the real OS clipboard and
+  // pushes a URL here the moment it changes to something link-shaped.
+  // -------------------------------------------------------------------
+  useEffect(() => {
+    const unsubscribe = api.onClipboardUrl(async (url) => {
+      if (!clipboardWatch) return;
+      addToast('Clipboard watch: analyzing new link...', 'info');
+      const res = await api.analyzeUrl(url);
+      if (res.ok) {
+        setCurrentVideo(res.data);
+        handleStartDownload({ video: res.data, format: res.data.availableFormats[0], crf: 20 });
+      } else {
+        addToast(res.error, 'error');
+      }
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipboardWatch]);
 
   const getEffectiveOptions = useCallback(() => ({
     embedThumbnail: true,
@@ -303,7 +375,7 @@ export default function App() {
       extractAudio: opts.extractAudio, useSponsorBlock: opts.useSponsorBlock,
       burnInSubtitles, subtitleLangs: subLangs,
       concurrentFragments: opts.concurrentFragments, retries: opts.retries,
-      smartTools
+      smartTools, title: video.title, resolution: format.resolution
     };
     taskParamsRef.current.set(id, startParams);
 
@@ -400,6 +472,7 @@ export default function App() {
   const setNotifications = useCallback((v: boolean) => { setNotificationsState(v); api.setSetting('notifications', v); }, []);
   const setAutoStart = useCallback((v: boolean) => { setAutoStartState(v); api.setSetting('autoStart', v); }, []);
   const setMaxConcurrent = useCallback((n: number) => { setMaxConcurrentState(n); api.setSetting('maxConcurrent', n); }, []);
+  const setClipboardWatch = useCallback((v: boolean) => { setClipboardWatchState(v); api.setSetting('clipboardWatch', v); }, []);
 
   useEffect(() => { if (settingsLoaded) api.setSetting('embedSubtitles', embedSubtitles); }, [embedSubtitles, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) api.setSetting('selectedSubLanguages', selectedSubLanguages); }, [selectedSubLanguages, settingsLoaded]);
@@ -579,6 +652,10 @@ export default function App() {
                   maxConcurrent={maxConcurrent}
                   setMaxConcurrent={setMaxConcurrent}
                   isWindowsConnected={isWindowsConnected}
+                  clipboardWatch={clipboardWatch}
+                  setClipboardWatch={setClipboardWatch}
+                  history={history}
+                  onClearHistory={() => api.clearHistory().then(setHistory)}
                 />
               </motion.div>
             )}

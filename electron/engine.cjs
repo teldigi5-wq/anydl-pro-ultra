@@ -292,7 +292,10 @@ function buildDownloadArgs(params) {
     args.push('--merge-output-format', mergeContainer);
   }
 
-  if (embedThumbnail) args.push('--embed-thumbnail', '--embed-metadata');
+  if (embedThumbnail) args.push('--embed-thumbnail', '--convert-thumbnails', 'jpg', '--embed-metadata', '--no-embed-info-json');
+  else args.push('--embed-metadata', '--no-embed-info-json');
+  // Defensive: never leave sidecar files behind even if a postprocessor bails early.
+  args.push('--no-write-info-json', '--no-write-thumbnail', '--no-write-description');
   if (smartTools?.chapterMarkers) args.push('--embed-chapters');
 
   if (embedSubtitles || burnInSubtitles) {
@@ -328,7 +331,7 @@ function buildDownloadArgs(params) {
     } else {
       // Real crop -> boxblur -> overlay chain: blurs only the selected region, leaves the rest untouched.
       const filterComplex = `[0:v]split=2[bg][fg];[fg]crop=iw*${w}:ih*${h}:iw*${x}:ih*${y},boxblur=12:3[blurred];[bg][blurred]overlay=iw*${x}:ih*${y}`;
-      postArgs.push('-filter_complex', `"${filterComplex}"`);
+      postArgs.push('-filter_complex', filterComplex);
     }
   }
 

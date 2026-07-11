@@ -46,5 +46,16 @@ contextBridge.exposeInMainWorld('anydl', {
     const listener = (_e, evt) => cb(evt);
     ipcRenderer.on('browser:media-detected', listener);
     return () => ipcRenderer.removeListener('browser:media-detected', listener);
+  },
+
+  // Download history
+  getHistory: () => ipcRenderer.invoke('history:get'),
+  clearHistory: () => ipcRenderer.invoke('history:clear'),
+
+  // Clipboard auto-watch
+  onClipboardUrl: (cb) => {
+    const listener = (_e, url) => cb(url);
+    ipcRenderer.on('clipboard:url-detected', listener);
+    return () => ipcRenderer.removeListener('clipboard:url-detected', listener);
   }
 });

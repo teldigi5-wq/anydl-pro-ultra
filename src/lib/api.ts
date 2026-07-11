@@ -24,6 +24,7 @@ export interface AppSettings {
   customRetries: number;
   smartTools: Record<string, any>;
   useSystemYtDlp: boolean;
+  clipboardWatch: boolean;
 }
 
 export interface DownloadStartTask {
@@ -42,6 +43,8 @@ export interface DownloadStartTask {
   retries: number;
   limitRateKBps?: number;
   smartTools?: Record<string, any>;
+  title?: string;
+  resolution?: string;
 }
 
 export interface DownloadEvent {
@@ -82,6 +85,15 @@ export interface GpuCheckResult {
   note: string | null;
 }
 
+export interface HistoryEntry {
+  id: string;
+  title: string;
+  url: string;
+  filePath: string | null;
+  resolution: string | null;
+  completedAt: number;
+}
+
 interface AnydlBridge {
   isElectron: true;
   platform: string;
@@ -102,6 +114,9 @@ interface AnydlBridge {
   onSystemStats(cb: (stats: SystemStatsPayload) => void): () => void;
   getBrowserPartition(): Promise<string>;
   onMediaDetected(cb: (evt: DetectedMediaEvent) => void): () => void;
+  getHistory(): Promise<HistoryEntry[]>;
+  clearHistory(): Promise<HistoryEntry[]>;
+  onClipboardUrl(cb: (url: string) => void): () => void;
 }
 
 declare global {
@@ -190,5 +205,17 @@ export const api = {
   onMediaDetected(cb: (evt: DetectedMediaEvent) => void) {
     if (!window.anydl) return () => {};
     return window.anydl.onMediaDetected(cb);
+  },
+  async getHistory(): Promise<HistoryEntry[]> {
+    if (!window.anydl) return [];
+    return window.anydl.getHistory();
+  },
+  async clearHistory(): Promise<HistoryEntry[]> {
+    if (!window.anydl) return [];
+    return window.anydl.clearHistory();
+  },
+  onClipboardUrl(cb: (url: string) => void) {
+    if (!window.anydl) return () => {};
+    return window.anydl.onClipboardUrl(cb);
   }
 };

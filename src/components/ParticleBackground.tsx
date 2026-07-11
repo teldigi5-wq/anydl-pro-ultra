@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-export const ParticleBackground: React.FC = () => {
+const ParticleBackgroundInner: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -19,7 +19,13 @@ export const ParticleBackground: React.FC = () => {
 
     const colors = ['#06b6d4', '#10b981', '#8b5cf6', '#3b82f6'];
 
-    for (let i = 0; i < 60; i++) {
+    // Fewer particles + a shorter connection radius keeps this cheap enough
+    // to not compete with scroll/input handling on the main thread.
+    const PARTICLE_COUNT = 34;
+    const CONNECT_DIST = 120;
+    const CONNECT_DIST_SQ = CONNECT_DIST * CONNECT_DIST;
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
       particles.push({
         x: Math.random() * w,
         y: Math.random() * h,
@@ -32,9 +38,17 @@ export const ParticleBackground: React.FC = () => {
     }
 
     let animId: number;
+    let frameCount = 0;
     const animate = () => {
+      animId = requestAnimationFrame(animate);
+      // Redraw at ~30fps instead of ~60fps — a background ambient effect
+      // doesn't need full frame rate, and this halves its CPU cost.
+      frameCount++;
+      if (frameCount % 2 !== 0) return;
+
       ctx.clearRect(0, 0, w, h);
-      particles.forEach((p, i) => {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
         if (p.x < 0) p.x = w;
@@ -48,25 +62,24 @@ export const ParticleBackground: React.FC = () => {
         ctx.globalAlpha = p.alpha;
         ctx.fill();
 
-        // Draw connections
         for (let j = i + 1; j < particles.length; j++) {
           const p2 = particles[j];
           const dx = p.x - p2.x;
           const dy = p.y - p2.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 150) {
+          const distSq = dx * dx + dy * dy;
+          if (distSq < CONNECT_DIST_SQ) {
+            const dist = Math.sqrt(distSq);
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = p.color;
-            ctx.globalAlpha = (1 - dist / 150) * 0.08;
+            ctx.globalAlpha = (1 - dist / CONNECT_DIST) * 0.08;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
         }
-      });
+      }
       ctx.globalAlpha = 1;
-      animId = requestAnimationFrame(animate);
     };
     animate();
 
@@ -89,3 +102,7 @@ export const ParticleBackground: React.FC = () => {
     />
   );
 };
+
+// No props ever change, so this never needs to re-render when the rest of
+// the app updates (e.g. on every download progress tick).
+export const ParticleBackground = React.memo(ParticleBackgroundInner);

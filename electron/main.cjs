@@ -126,6 +126,27 @@ async function ensureDownloadDir() {
   return dir;
 }
 
+let clipboardWatchTimer = null;
+let lastClipboardText = '';
+const URL_DETECT_RE = /^https?:\/\/[^\s]+$/i;
+
+function startClipboardWatch() {
+  if (clipboardWatchTimer) return;
+  const { clipboard } = require('electron');
+  clipboardWatchTimer = setInterval(() => {
+    if (!store.getAll().clipboardWatch) return;
+    try {
+      const text = (clipboard.readText() || '').trim();
+      if (text && text !== lastClipboardText && URL_DETECT_RE.test(text)) {
+        lastClipboardText = text;
+        send('clipboard:url-detected', text);
+      } else if (text) {
+        lastClipboardText = text;
+      }
+    } catch { /* clipboard can throw on some platforms/states — ignore */ }
+  }, 1500);
+}
+
 function startSystemStats() {
   if (statsInterval) return;
   statsInterval = setInterval(async () => {
@@ -165,6 +186,7 @@ app.whenReady().then(async () => {
   createWindow();
   startSystemStats();
   setupBrowserNetworkSniffer();
+  startClipboardWatch();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -173,6 +195,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (statsInterval) clearInterval(statsInterval);
+  if (clipboardWatchTimer) clearInterval(clipboardWatchTimer);
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -223,8 +246,21 @@ function makeDownloadEventHandler(task, settings) {
     if (evt.type === 'complete' && evt.filePath && task.smartTools?.upscaleAI) {
       engine.runUpscale(task.id, evt.filePath, settings, (uEvt) => send('download:event', uEvt));
     }
+    if (evt.type === 'complete') {
+      store.addHistoryEntry({
+        id: task.id,
+        title: task.title || task.url,
+        url: task.url,
+        filePath: evt.filePath || null,
+        resolution: task.resolution || null,
+        completedAt: Date.now()
+      });
+    }
   };
 }
+
+ipcMain.handle('history:get', () => store.getHistory());
+ipcMain.handle('history:clear', () => store.clearHistory());
 
 ipcMain.handle('download:start', async (_e, task) => {
   const settings = store.getAll();
