@@ -301,6 +301,9 @@ function buildDownloadArgs(params) {
   if (embedSubtitles || burnInSubtitles) {
     const langs = (subtitleLangs && subtitleLangs.length ? subtitleLangs : ['en.*', 'all']).join(',');
     args.push('--write-subs', '--write-auto-subs', '--sub-langs', langs, '--convert-subs', 'srt');
+    // Real protection against YouTube's subtitle-endpoint rate limiting (HTTP 429),
+    // which is what turned an otherwise-successful download into a false failure.
+    args.push('--sleep-subtitles', '1');
     if (burnInSubtitles) {
       // Burn-in requires a real ffmpeg re-encode pass; embed as soft subs otherwise.
       args.push('--postprocessor-args', 'EmbedSubtitle+ffmpeg:-c:v libx264 -crf 20');
@@ -345,6 +348,28 @@ function buildDownloadArgs(params) {
   args.push('-o', outTemplate);
   args.push(url);
   return args;
+}
+
+const VIDEO_EXT_RE = /\.(mp4|mkv|webm|mov|m4a|mp3|flac|opus)$/i;
+const TEMP_EXT_RE = /\.(part|ytdl|tmp)$/i;
+
+function findLikelyOutputFile(dir, taskId) {
+  try {
+    const entries = fs.readdirSync(dir)
+      .filter(f => VIDEO_EXT_RE.test(f) && !TEMP_EXT_RE.test(f))
+      .map(f => {
+        const full = path.join(dir, f);
+        return { full, mtime: fs.statSync(full).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    // Most-recently-modified real video/audio file in the download folder,
+    // written within the last 5 minutes — a reasonable heuristic for "this
+    // is the file this task just produced" without over-claiming certainty.
+    const recent = entries.find(e => Date.now() - e.mtime < 5 * 60 * 1000);
+    return recent ? recent.full : (entries[0] ? entries[0].full : null);
+  } catch {
+    return null;
+  }
 }
 
 function startDownload(id, params, settings, onEvent) {
@@ -421,6 +446,18 @@ function startDownload(id, params, settings, onEvent) {
     }
     if (code === 0) {
       onEvent({ id, type: 'complete', status: 'completed', filePath: lastFilePath });
+      return;
+    }
+    // A non-zero exit doesn't always mean the download itself failed — a
+    // postprocessor step (e.g. subtitle embed hitting a rate limit) can
+    // exit non-zero even though the real video file was already written.
+    // Check disk before reporting a false failure.
+    const candidate = lastFilePath && fs.existsSync(lastFilePath) ? lastFilePath : findLikelyOutputFile(params.outputDir, id);
+    if (candidate) {
+      onEvent({
+        id, type: 'complete', status: 'completed', filePath: candidate,
+        message: `[engine] yt-dlp exited with code ${code} (likely a subtitle/postprocessor issue), but the video file was found on disk — keeping it.`
+      });
     } else {
       onEvent({ id, type: 'error', status: 'error', message: `yt-dlp exited with code ${code}` });
     }

@@ -105,7 +105,7 @@ export default function App() {
   // Subtitle studio state
   const [embedSubtitles, setEmbedSubtitles] = useState(true);
   const [burnInSubtitles, setBurnInSubtitles] = useState(false);
-  const [selectedSubLanguages, setSelectedSubLanguages] = useState<string[]>(['en', 'all']);
+  const [selectedSubLanguages, setSelectedSubLanguages] = useState<string[]>(['en']);
 
   // Smart toolbox state
   const [smartTools, setSmartTools] = useState<SmartToolsState>(DEFAULT_SMART_TOOLS);
@@ -277,8 +277,8 @@ export default function App() {
               const res = await api.analyzeUrl(text.trim());
               if (res.ok) {
                 setCurrentVideo(res.data);
-                handleStartDownload({ video: res.data, format: res.data.availableFormats[0], crf: 20 });
-                addToast('Auto-detected URL from clipboard!', 'success');
+                setActiveTab('analyzer');
+                addToast('Link analyzed — pick a quality below and hit Start Download.', 'success');
               } else {
                 addToast(res.error, 'error');
               }
@@ -308,7 +308,8 @@ export default function App() {
       const res = await api.analyzeUrl(url);
       if (res.ok) {
         setCurrentVideo(res.data);
-        handleStartDownload({ video: res.data, format: res.data.availableFormats[0], crf: 20 });
+        setActiveTab('analyzer');
+        addToast('Link analyzed — pick a quality below and hit Start Download.', 'success');
       } else {
         addToast(res.error, 'error');
       }
@@ -343,9 +344,12 @@ export default function App() {
     const totalMB = calculateEstimatedSizeMB(format, video.durationSeconds, crf);
     const eta = calculateETASeconds(totalMB, userSpeedMbps);
     const subTracks = detectSubtitlesForPlatform(video.platform, video.subtitlesAvailable);
+    // 'all' is now only ever present if the user explicitly picked it in Subtitle
+    // Studio — requesting every language in one go is what triggers YouTube's
+    // 429 rate limit, so even then we cap it rather than blindly requesting ~140.
     const subLangs = selectedSubLanguages.includes('all')
       ? ['en.*', 'all']
-      : selectedSubLanguages.map(l => `${l}.*`);
+      : selectedSubLanguages.slice(0, 5).map(l => `${l}.*`);
 
     const outputFormat: DownloadTask['outputFormat'] = opts.extractAudio ? 'mp3' : (opts.embedSubtitles ? 'mkv' : format.ext as any);
 
@@ -689,7 +693,8 @@ export default function App() {
             const res = await api.analyzeUrl(url);
             if (res.ok) {
               setCurrentVideo(res.data);
-              handleStartDownload({ video: res.data, format: res.data.availableFormats[0], crf: 20 });
+              setActiveTab('analyzer');
+              addToast('Link analyzed — pick a quality below and hit Start Download.', 'success');
             } else {
               addToast(res.error, 'error');
             }

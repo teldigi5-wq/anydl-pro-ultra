@@ -10,7 +10,7 @@ const DEFAULTS = {
   maxConcurrent: 3,
   theme: 'cyber-dark',
   embedSubtitles: true,
-  selectedSubLanguages: ['en', 'all'],
+  selectedSubLanguages: ['en'],
   speedProfile: 'Turbo',
   customConcurrent: 8,
   customBuffer: 4096,
