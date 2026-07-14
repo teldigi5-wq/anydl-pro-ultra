@@ -11,6 +11,7 @@ export interface VideoFormatOption {
   ext: 'mp4' | 'mkv' | 'webm' | 'm4a' | 'mp3';
   baseBitrateKbps: number;
   note: string;
+  exactSizeMB?: number | null;
 }
 
 export interface VideoAnalysisResult {

@@ -126,6 +126,22 @@ const RES_TIERS = [
   { height: 360, label: '360p' }
 ];
 
+function estimateFormatSizeMB(format, durationSeconds) {
+  if (!format) return null;
+  if (typeof format.filesize === 'number' && format.filesize > 0) {
+    return Math.round((format.filesize / (1024 * 1024)) * 100) / 100;
+  }
+  if (typeof format.filesize_approx === 'number' && format.filesize_approx > 0) {
+    return Math.round((format.filesize_approx / (1024 * 1024)) * 100) / 100;
+  }
+  const bitrateKbps = format.tbr || format.vbr || format.abr;
+  if (bitrateKbps && durationSeconds) {
+    // kbps * seconds / 8 bits-per-byte / 1024 = MB
+    return Math.round(((bitrateKbps * durationSeconds) / 8 / 1024) * 100) / 100;
+  }
+  return null;
+}
+
 function estimateBitrateKbps(height) {
   // Reasonable real-world H.264-ish bitrate ladder, used only as a size
   // *estimate* for the UI before download — yt-dlp reports the true size.
@@ -164,23 +180,62 @@ async function analyzeUrl(url, settings) {
   const heights = formats.map(f => f.height).filter(h => typeof h === 'number' && h > 0);
   const maxHeight = heights.length ? Math.max(...heights) : (info.height || 1080);
 
+  // Real audio track picked once, reused to pair with every video-only track
+  // below and to estimate combined file size accurately.
+  const bestAudioForPairing = formats
+    .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
+    .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+  const audioSizeMB = estimateFormatSizeMB(bestAudioForPairing, info.duration);
+
   const availableFormats = [];
   for (const tier of RES_TIERS) {
     if (tier.height > maxHeight + 50) continue; // don't offer resolutions the source doesn't have
-    const match = formats
-      .filter(f => f.height && Math.abs(f.height - tier.height) <= 60)
-      .sort((a, b) => (b.tbr || 0) - (a.tbr || 0))[0];
-    availableFormats.push({
-      formatId: `bestvideo[height<=${tier.height}]+bestaudio/best[height<=${tier.height}]`,
-      resolution: tier.label,
-      fps: match?.fps || 30,
-      videoCodec: normalizeVCodec(match?.vcodec),
-      audioCodec: normalizeACodec(match?.acodec),
-      ext: 'mp4',
-      baseBitrateKbps: match?.tbr ? Math.round(match.tbr) : estimateBitrateKbps(tier.height),
-      note: match ? `Real source track ${match.format_id} detected` : `Adaptive selection (yt-dlp auto-picks best ≤${tier.height}p)`
-    });
-    if (availableFormats.length === 0) break;
+
+    // Every real codec variant available at this height — this is what
+    // powers the AV1 vs H264 vs VP9 choice, same as sites that show
+    // "Download MP4 (720p, AV1, 213 MB) or MP4 (720p, H264, 607 MB)".
+    const atThisHeight = formats.filter(f => f.height && Math.abs(f.height - tier.height) <= 60 && f.vcodec && f.vcodec !== 'none');
+    const byCodec = new Map();
+    for (const f of atThisHeight) {
+      const codec = normalizeVCodec(f.vcodec);
+      const existing = byCodec.get(codec);
+      if (!existing || (f.tbr || 0) > (existing.tbr || 0)) byCodec.set(codec, f);
+    }
+
+    if (byCodec.size === 0) {
+      // No exact match at this height — fall back to a safe adaptive selector.
+      availableFormats.push({
+        formatId: `bestvideo[height<=${tier.height}]+bestaudio/best[height<=${tier.height}]`,
+        resolution: tier.label, fps: 30,
+        videoCodec: 'avc1', audioCodec: normalizeACodec(bestAudioForPairing?.acodec),
+        ext: 'mp4', baseBitrateKbps: estimateBitrateKbps(tier.height),
+        note: `Adaptive selection (yt-dlp auto-picks best ≤${tier.height}p)`
+      });
+      continue;
+    }
+
+    // AV1 first (best compression/quality per MB), then VP9, then H264 last —
+    // mirrors how the file-size difference in the reference UI reads naturally.
+    const codecOrder = ['av01', 'vp9', 'hevc', 'avc1'];
+    const sortedCodecs = [...byCodec.entries()].sort((a, b) => codecOrder.indexOf(a[0]) - codecOrder.indexOf(b[0]));
+
+    for (const [codec, match] of sortedCodecs) {
+      const videoSizeMB = estimateFormatSizeMB(match, info.duration);
+      const totalMB = videoSizeMB && audioSizeMB ? Math.round((videoSizeMB + audioSizeMB) * 10) / 10 : null;
+      availableFormats.push({
+        formatId: bestAudioForPairing ? `${match.format_id}+${bestAudioForPairing.format_id}/best[height<=${tier.height}]` : `${match.format_id}+bestaudio/best[height<=${tier.height}]`,
+        resolution: tier.label,
+        fps: match.fps || 30,
+        videoCodec: codec,
+        audioCodec: normalizeACodec(bestAudioForPairing?.acodec),
+        ext: 'mp4',
+        baseBitrateKbps: match.tbr ? Math.round(match.tbr) : estimateBitrateKbps(tier.height),
+        exactSizeMB: totalMB,
+        note: totalMB
+          ? `Real source track ${match.format_id} (${codec.toUpperCase()}) — ${totalMB} MB`
+          : `Real source track ${match.format_id} (${codec.toUpperCase()})`
+      });
+    }
   }
   if (availableFormats.length === 0) {
     availableFormats.push({
@@ -191,9 +246,7 @@ async function analyzeUrl(url, settings) {
       note: 'Best available stream (auto-detected)'
     });
   }
-  // Audio only
-  const bestAudio = formats.filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-    .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+  const bestAudio = bestAudioForPairing;
   availableFormats.push({
     formatId: 'bestaudio/best',
     resolution: 'Audio Only',

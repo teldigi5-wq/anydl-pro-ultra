@@ -77,7 +77,7 @@ export const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
   const activeVideo = currentVideo;
   const selectedFormat = activeVideo?.availableFormats.find(f => f.formatId === selectedFormatId) || activeVideo?.availableFormats[0];
 
-  const estimatedSizeMB = activeVideo && selectedFormat ? calculateEstimatedSizeMB(selectedFormat, activeVideo.durationSeconds, crf) : 0;
+  const estimatedSizeMB = activeVideo && selectedFormat ? (selectedFormat.exactSizeMB ?? calculateEstimatedSizeMB(selectedFormat, activeVideo.durationSeconds, crf)) : 0;
   const estimatedEtaSeconds = calculateETASeconds(estimatedSizeMB, userSpeedMbps);
 
   const exactCommand = activeVideo && selectedFormat ? generateYtDlpCommand({
@@ -371,7 +371,7 @@ export const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
             <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
               {activeVideo.availableFormats.map((format) => {
                 const isSelected = format.formatId === selectedFormatId;
-                const sizeEstimate = calculateEstimatedSizeMB(format, activeVideo.durationSeconds, crf);
+                const sizeEstimate = format.exactSizeMB ?? calculateEstimatedSizeMB(format, activeVideo.durationSeconds, crf);
 
                 return (
                   <div
