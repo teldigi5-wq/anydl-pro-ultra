@@ -29,7 +29,8 @@ const DEFAULTS = {
     multiAudioTracks: false
   },
   useSystemYtDlp: false,
-  clipboardWatch: false
+  clipboardWatch: false,
+  globalLimitRateKBps: 0
 };
 
 function filePath() {

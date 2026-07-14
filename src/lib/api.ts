@@ -25,6 +25,7 @@ export interface AppSettings {
   smartTools: Record<string, any>;
   useSystemYtDlp: boolean;
   clipboardWatch: boolean;
+  globalLimitRateKBps: number;
 }
 
 export interface DownloadStartTask {

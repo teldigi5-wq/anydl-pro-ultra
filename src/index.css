@@ -248,3 +248,65 @@ button:active:not(:disabled) { transform: scale(0.98); }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Liquid Glass theme: frosted translucent panels with a soft specular */
+/* highlight, inspired by frosted-glass UI aesthetics. Backdrop-filter  */
+/* is compositor-accelerated so this stays cheap even during scrolling. */
+/* ------------------------------------------------------------------ */
+[data-theme="liquid-glass"] .bg-slate-900\/90,
+[data-theme="liquid-glass"] .bg-slate-900\/80,
+[data-theme="liquid-glass"] .bg-slate-900\/70,
+[data-theme="liquid-glass"] .bg-slate-900\/60,
+[data-theme="liquid-glass"] .bg-slate-900\/50,
+[data-theme="liquid-glass"] .bg-slate-900\/40,
+[data-theme="liquid-glass"] .bg-slate-800\/60,
+[data-theme="liquid-glass"] .bg-slate-800\/50,
+[data-theme="liquid-glass"] .bg-slate-800\/40 {
+  background: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+[data-theme="liquid-glass"] .border-slate-800,
+[data-theme="liquid-glass"] .border-slate-700 {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+[data-theme="liquid-glass"] .rounded-3xl,
+[data-theme="liquid-glass"] .rounded-2xl {
+  position: relative;
+  isolation: isolate;
+}
+[data-theme="liquid-glass"] .rounded-3xl::before,
+[data-theme="liquid-glass"] .rounded-2xl::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.03) 40%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle animated sheen sweep across primary call-to-action buttons —
+   transform/opacity only, so it composites cheaply and never triggers layout. */
+[data-theme="liquid-glass"] button[class*="gradient"] {
+  position: relative;
+  overflow: hidden;
+}
+[data-theme="liquid-glass"] button[class*="gradient"]::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60%;
+  width: 40%; height: 100%;
+  background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  animation: glass-sheen 3.2s ease-in-out infinite;
+}
+@keyframes glass-sheen {
+  0%   { left: -60%; opacity: 0; }
+  8%   { opacity: 1; }
+  35%  { left: 130%; opacity: 0; }
+  100% { left: 130%; opacity: 0; }
+}

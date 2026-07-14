@@ -119,6 +119,9 @@ export default function App() {
   // Tasks — starts empty. Every task here maps to a real yt-dlp child process.
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
   const taskParamsRef = useRef<Map<string, DownloadStartTask>>(new Map());
+  const promotedIdsRef = useRef<Set<string>>(new Set());
+  const speedHistoryRef = useRef<Map<string, number[]>>(new Map());
+  const [globalLimitRateKBps, setGlobalLimitRateKBpsState] = useState(0);
 
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
 
@@ -139,6 +142,7 @@ export default function App() {
         setCustomBuffer(settings.customBuffer);
         setCustomRetries(settings.customRetries);
         setClipboardWatchState(!!settings.clipboardWatch);
+        setGlobalLimitRateKBpsState(settings.globalLimitRateKBps || 0);
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
       }
       setSettingsLoaded(true);
@@ -211,6 +215,10 @@ export default function App() {
 
         if (extraLogs?.length) next = { ...next, logs: [...next.logs.slice(-60), ...extraLogs].slice(-60) };
         if (progress) {
+          const hist = speedHistoryRef.current.get(task.id) || [];
+          hist.push(progress.speedMBps ?? 0);
+          if (hist.length > 24) hist.shift();
+          speedHistoryRef.current.set(task.id, hist);
           next = {
             ...next,
             status: 'downloading',
@@ -218,7 +226,8 @@ export default function App() {
             totalSizeMB: progress.totalMB ?? next.totalSizeMB,
             downloadedMB: progress.downloadedMB ?? next.downloadedMB,
             downloadSpeedMbps: progress.speedMBps ?? next.downloadSpeedMbps,
-            etaSeconds: parseEtaToSeconds(progress.eta)
+            etaSeconds: parseEtaToSeconds(progress.eta),
+            speedHistory: [...hist]
           };
         }
         for (const evt of immediateForTask) {
@@ -318,6 +327,37 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clipboardWatch]);
 
+  // -------------------------------------------------------------------
+  // Real concurrency-limited queue: whenever a slot frees up (a task
+  // completes, errors, is paused, or maxConcurrent increases), promote
+  // the next queued task — highest priority first — and actually start it.
+  // -------------------------------------------------------------------
+  useEffect(() => {
+    const activeCount = tasks.filter(t => t.status === 'downloading' || t.status === 'merging').length;
+    const freeSlots = maxConcurrent - activeCount;
+    if (freeSlots <= 0) return;
+
+    const priorityOrder: Record<DownloadTask['priority'], number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+    const queued = tasks
+      .filter(t => t.status === 'queued' && !promotedIdsRef.current.has(t.id))
+      .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+    const toPromote = queued.slice(0, freeSlots);
+    if (toPromote.length === 0) return;
+
+    toPromote.forEach(t => promotedIdsRef.current.add(t.id));
+    setTasks(prev => prev.map(t => toPromote.some(p => p.id === t.id) ? { ...t, status: 'downloading' } : t));
+    toPromote.forEach(t => {
+      const params = taskParamsRef.current.get(t.id);
+      if (!params) return;
+      api.startDownload(params).then((res) => {
+        if (!res.ok) {
+          addToast('Could not reach the download engine.', 'error');
+          setTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: 'error', errorMessage: 'Engine unavailable' } : x));
+        }
+      });
+    });
+  }, [tasks, maxConcurrent, addToast]);
+
   const getEffectiveOptions = useCallback(() => ({
     embedThumbnail: true,
     embedSubtitles,
@@ -353,13 +393,16 @@ export default function App() {
 
     const outputFormat: DownloadTask['outputFormat'] = opts.extractAudio ? 'mp3' : (opts.embedSubtitles ? 'mkv' : format.ext as any);
 
+    const activeCount = tasks.filter(t => t.status === 'downloading' || t.status === 'merging').length;
+    const willQueue = activeCount >= maxConcurrent;
+
     const newTask: DownloadTask = {
       id, videoId: video.id, url: video.url, title: video.title,
       thumbnailUrl: video.thumbnailUrl, platform: video.platform,
       selectedFormatId: format.formatId, resolution: format.resolution,
       videoCodec: format.videoCodec, audioCodec: format.audioCodec, crf,
       outputFormat,
-      status: 'downloading',
+      status: willQueue ? 'queued' : 'downloading',
       progressPercent: 0,
       downloadSpeedMbps: 0,
       totalSizeMB: totalMB,
@@ -367,7 +410,8 @@ export default function App() {
       etaSeconds: eta,
       options: opts,
       logs: [`[engine] Queued: ${video.title}`, `[engine] Format: ${format.resolution} (${format.videoCodec}/${format.audioCodec})`,
-        `[engine] Subtitle tracks detected: ${subTracks.length ? subTracks.map(t => t.languageCode).join(', ') : 'none'}`],
+        `[engine] Subtitle tracks detected: ${subTracks.length ? subTracks.map(t => t.languageCode).join(', ') : 'none'}`,
+        ...(willQueue ? [`[engine] Waiting — ${activeCount}/${maxConcurrent} concurrent slots in use.`] : [])],
       priority: 'normal',
       startedAt: new Date()
     };
@@ -379,20 +423,24 @@ export default function App() {
       extractAudio: opts.extractAudio, useSponsorBlock: opts.useSponsorBlock,
       burnInSubtitles, subtitleLangs: subLangs,
       concurrentFragments: opts.concurrentFragments, retries: opts.retries,
-      smartTools, title: video.title, resolution: format.resolution
+      smartTools, title: video.title, resolution: format.resolution,
+      limitRateKBps: globalLimitRateKBps > 0 ? globalLimitRateKBps : undefined
     };
     taskParamsRef.current.set(id, startParams);
 
     setTasks(prev => [newTask, ...prev]);
-    addToast(`Started downloading: ${video.title.slice(0, 40)}...`, 'success');
+    addToast(willQueue ? `Queued (waiting for a free slot): ${video.title.slice(0, 40)}...` : `Started downloading: ${video.title.slice(0, 40)}...`, willQueue ? 'info' : 'success');
     setActiveTab('analyzer');
 
-    api.startDownload(startParams).then((res) => {
-      if (!res.ok) {
-        addToast('Could not reach the download engine. Are you running the desktop app?', 'error');
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'error', errorMessage: 'Engine unavailable' } : t));
-      }
-    });
+    if (!willQueue) {
+      promotedIdsRef.current.add(id);
+      api.startDownload(startParams).then((res) => {
+        if (!res.ok) {
+          addToast('Could not reach the download engine. Are you running the desktop app?', 'error');
+          setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'error', errorMessage: 'Engine unavailable' } : t));
+        }
+      });
+    }
   }, [getEffectiveOptions, userSpeedMbps, selectedSubLanguages, burnInSubtitles, smartTools, addToast]);
 
   const handleBatchAdd = useCallback((urls: string[]) => {
@@ -452,6 +500,8 @@ export default function App() {
   const handleRemoveTask = useCallback((id: string) => {
     api.cancelDownload(id);
     taskParamsRef.current.delete(id);
+    promotedIdsRef.current.delete(id);
+    speedHistoryRef.current.delete(id);
     setTasks(prev => prev.filter(t => t.id !== id));
     addToast('Task removed from queue', 'info');
   }, [addToast]);
@@ -477,6 +527,7 @@ export default function App() {
   const setAutoStart = useCallback((v: boolean) => { setAutoStartState(v); api.setSetting('autoStart', v); }, []);
   const setMaxConcurrent = useCallback((n: number) => { setMaxConcurrentState(n); api.setSetting('maxConcurrent', n); }, []);
   const setClipboardWatch = useCallback((v: boolean) => { setClipboardWatchState(v); api.setSetting('clipboardWatch', v); }, []);
+  const setGlobalLimitRateKBps = useCallback((n: number) => { setGlobalLimitRateKBpsState(n); api.setSetting('globalLimitRateKBps', n); }, []);
 
   useEffect(() => { if (settingsLoaded) api.setSetting('embedSubtitles', embedSubtitles); }, [embedSubtitles, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) api.setSetting('selectedSubLanguages', selectedSubLanguages); }, [selectedSubLanguages, settingsLoaded]);
@@ -660,6 +711,8 @@ export default function App() {
                   setClipboardWatch={setClipboardWatch}
                   history={history}
                   onClearHistory={() => api.clearHistory().then(setHistory)}
+                  globalLimitRateKBps={globalLimitRateKBps}
+                  setGlobalLimitRateKBps={setGlobalLimitRateKBps}
                 />
               </motion.div>
             )}

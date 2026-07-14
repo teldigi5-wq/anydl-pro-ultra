@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DownloadTask } from '../types';
 import { formatDuration } from '../utils/qualityEngine';
@@ -7,6 +7,34 @@ import {
   Zap, Award, ArrowUp, ArrowDown, Gauge, Clock, HardDrive
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+// Ticks on its own 1s interval so it never triggers a re-render of the
+// parent task list — real elapsed time, isolated cost.
+const ElapsedTimer: React.FC<{ startedAt: Date }> = ({ startedAt }) => {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => tick(n => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+  return <span className="text-slate-400 font-mono" title="Elapsed time">⏱ {formatDuration(seconds)}</span>;
+};
+
+// Tiny real-data sparkline of the last ~24 speed samples for this task.
+const SpeedSparkline: React.FC<{ data: number[] }> = ({ data }) => {
+  const max = Math.max(0.1, ...data);
+  const w = 48, h = 14;
+  const points = data.map((v, i) => {
+    const x = (i / Math.max(1, data.length - 1)) * w;
+    const y = h - (v / max) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0" aria-hidden="true">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
+    </svg>
+  );
+};
 
 interface DownloadQueueProps {
   tasks: DownloadTask[];
@@ -148,6 +176,7 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
                             isCompleted ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' :
                             isPaused ? 'bg-yellow-950 text-yellow-300 border border-yellow-500/40' :
                             task.status === 'error' ? 'bg-red-950 text-red-300 border border-red-500/40' :
+                            task.status === 'queued' ? 'bg-slate-800 text-slate-300 border border-slate-600/60' :
                             'bg-cyan-950 text-cyan-300 border border-cyan-500/40 animate-pulse'
                           }`}>
                             {task.status}
@@ -177,9 +206,14 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
                             <span className="text-emerald-400 font-bold flex items-center gap-2">
                               <Gauge className="w-3 h-3" />
                               <span>{task.downloadSpeedMbps} MB/s</span>
+                              {task.speedHistory && task.speedHistory.length > 1 && (
+                                <SpeedSparkline data={task.speedHistory} />
+                              )}
                               <span className="text-slate-600">|</span>
                               <Clock className="w-3 h-3" />
                               <span>ETA {formatDuration(task.etaSeconds)}</span>
+                              <span className="text-slate-600">|</span>
+                              {task.startedAt && <ElapsedTimer startedAt={task.startedAt} />}
                             </span>
                           )}
                           {isCompleted && (

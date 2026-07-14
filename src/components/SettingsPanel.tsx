@@ -20,6 +20,8 @@ interface SettingsPanelProps {
   setClipboardWatch: (v: boolean) => void;
   history: HistoryEntry[];
   onClearHistory: () => void;
+  globalLimitRateKBps: number;
+  setGlobalLimitRateKBps: (n: number) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -35,7 +37,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   clipboardWatch,
   setClipboardWatch,
   history,
-  onClearHistory
+  onClearHistory,
+  globalLimitRateKBps,
+  setGlobalLimitRateKBps
 }) => {
   const chooseFolder = async () => {
     const picked = await api.chooseFolder();
@@ -111,6 +115,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               className="w-full accent-cyan-400"
             />
             <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>How many yt-dlp jobs can run at the same time.</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[11px] font-mono flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+              <Download className="w-3.5 h-3.5" /> Bandwidth Limit: {globalLimitRateKBps > 0 ? `${globalLimitRateKBps} KB/s` : 'Unlimited'}
+            </label>
+            <input
+              type="range" min={0} max={20000} step={250}
+              value={globalLimitRateKBps}
+              onChange={(e) => setGlobalLimitRateKBps(Number(e.target.value))}
+              className="w-full accent-cyan-400"
+            />
+            <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+              Real yt-dlp --limit-rate cap applied to every new download. 0 = unlimited (uses your full connection).
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

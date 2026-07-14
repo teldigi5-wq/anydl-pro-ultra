@@ -10,7 +10,8 @@ export type ThemeId =
   | 'arctic-frost'
   | 'rose-gold'
   | 'windows-fluent'
-  | 'oled-black';
+  | 'oled-black'
+  | 'liquid-glass';
 
 export interface AppTheme {
   id: ThemeId;
@@ -219,6 +220,31 @@ export const THEMES: AppTheme[] = [
       '--gradient-from': '#22d3ee',
       '--gradient-via': '#a3e635',
       '--gradient-to': '#f472b6'
+    }
+  },
+  {
+    id: 'liquid-glass',
+    name: 'Liquid Glass',
+    description: 'Frosted translucent panels with soft specular highlights',
+    preview: ['#5ec8f8', '#a78bfa', '#0b1220'],
+    vars: {
+      '--bg-primary': '#0b1220',
+      '--bg-secondary': '#111a2c',
+      '--bg-card': 'rgba(255, 255, 255, 0.06)',
+      '--bg-elevated': 'rgba(255, 255, 255, 0.1)',
+      '--border-color': 'rgba(255, 255, 255, 0.14)',
+      '--text-primary': '#f1f5f9',
+      '--text-secondary': '#a8b3c5',
+      '--accent': '#5ec8f8',
+      '--accent-2': '#a78bfa',
+      '--accent-3': '#6ee7d8',
+      '--accent-glow': 'rgba(94, 200, 248, 0.35)',
+      '--success': '#6ee7b7',
+      '--warning': '#fbd489',
+      '--danger': '#fca5a5',
+      '--gradient-from': '#5ec8f8',
+      '--gradient-via': '#a78bfa',
+      '--gradient-to': '#6ee7d8'
     }
   }
 ];

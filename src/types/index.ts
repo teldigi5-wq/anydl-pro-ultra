@@ -67,6 +67,7 @@ export interface DownloadTask {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   filePath?: string | null;
   errorMessage?: string;
+  speedHistory?: number[];
 }
 
 export interface BatchDownloadItem {
