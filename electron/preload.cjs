@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('anydl', {
 
   // Embedded browser + real network sniffer
   getBrowserPartition: () => ipcRenderer.invoke('browser:partition'),
+  getBrowserPreloadPath: () => ipcRenderer.invoke('browser:preload-path'),
   onMediaDetected: (cb) => {
     const listener = (_e, evt) => cb(evt);
     ipcRenderer.on('browser:media-detected', listener);

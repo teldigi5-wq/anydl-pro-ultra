@@ -122,6 +122,8 @@ export default function App() {
   const promotedIdsRef = useRef<Set<string>>(new Set());
   const speedHistoryRef = useRef<Map<string, number[]>>(new Map());
   const [globalLimitRateKBps, setGlobalLimitRateKBpsState] = useState(0);
+  const [proxyEnabled, setProxyEnabledState] = useState(false);
+  const [proxyUrl, setProxyUrlState] = useState('');
 
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
 
@@ -143,6 +145,8 @@ export default function App() {
         setCustomRetries(settings.customRetries);
         setClipboardWatchState(!!settings.clipboardWatch);
         setGlobalLimitRateKBpsState(settings.globalLimitRateKBps || 0);
+        setProxyEnabledState(!!settings.proxyEnabled);
+        setProxyUrlState(settings.proxyUrl || '');
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
       }
       setSettingsLoaded(true);
@@ -528,6 +532,8 @@ export default function App() {
   const setMaxConcurrent = useCallback((n: number) => { setMaxConcurrentState(n); api.setSetting('maxConcurrent', n); }, []);
   const setClipboardWatch = useCallback((v: boolean) => { setClipboardWatchState(v); api.setSetting('clipboardWatch', v); }, []);
   const setGlobalLimitRateKBps = useCallback((n: number) => { setGlobalLimitRateKBpsState(n); api.setSetting('globalLimitRateKBps', n); }, []);
+  const setProxyEnabled = useCallback((v: boolean) => { setProxyEnabledState(v); api.setSetting('proxyEnabled', v); }, []);
+  const setProxyUrl = useCallback((v: string) => { setProxyUrlState(v); api.setSetting('proxyUrl', v); }, []);
 
   useEffect(() => { if (settingsLoaded) api.setSetting('embedSubtitles', embedSubtitles); }, [embedSubtitles, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) api.setSetting('selectedSubLanguages', selectedSubLanguages); }, [selectedSubLanguages, settingsLoaded]);
@@ -713,6 +719,10 @@ export default function App() {
                   onClearHistory={() => api.clearHistory().then(setHistory)}
                   globalLimitRateKBps={globalLimitRateKBps}
                   setGlobalLimitRateKBps={setGlobalLimitRateKBps}
+                  proxyEnabled={proxyEnabled}
+                  setProxyEnabled={setProxyEnabled}
+                  proxyUrl={proxyUrl}
+                  setProxyUrl={setProxyUrl}
                 />
               </motion.div>
             )}

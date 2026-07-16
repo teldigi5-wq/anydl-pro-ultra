@@ -154,9 +154,11 @@ function estimateBitrateKbps(height) {
   return 700;
 }
 
-function runYtDlpJSON(ytdlpPath, url) {
+function runYtDlpJSON(ytdlpPath, url, proxyUrl) {
   return new Promise((resolve, reject) => {
-    const args = ['-J', '--no-warnings', '--no-playlist', url];
+    const args = ['-J', '--no-warnings', '--no-playlist'];
+    if (proxyUrl) args.push('--proxy', proxyUrl);
+    args.push(url);
     execFile(ytdlpPath, args, { maxBuffer: 64 * 1024 * 1024, timeout: 45000 }, (err, stdout, stderr) => {
       if (err) {
         const msg = (stderr || err.message || 'yt-dlp failed').split('\n').filter(Boolean).pop() || 'yt-dlp failed';
@@ -173,7 +175,8 @@ function runYtDlpJSON(ytdlpPath, url) {
 
 async function analyzeUrl(url, settings) {
   const { ytdlp } = getPaths(settings);
-  const info = await runYtDlpJSON(ytdlp.path, url);
+  const proxyUrl = settings?.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : null;
+  const info = await runYtDlpJSON(ytdlp.path, url, proxyUrl);
 
   // Determine tallest available format height so we don't offer fake tiers.
   const formats = Array.isArray(info.formats) ? info.formats : [];
@@ -335,7 +338,7 @@ function buildDownloadArgs(params) {
   const {
     url, formatSelector, outputDir, container, embedThumbnail, embedSubtitles,
     extractAudio, useSponsorBlock, burnInSubtitles, subtitleLangs,
-    concurrentFragments, retries, limitRateKBps, smartTools, cookiesFromBrowser
+    concurrentFragments, retries, limitRateKBps, smartTools, cookiesFromBrowser, proxyUrl
   } = params;
 
   const args = ['--newline', '--no-warnings', '--no-playlist', '--ignore-config', '--ignore-errors'];
@@ -343,6 +346,7 @@ function buildDownloadArgs(params) {
   if (concurrentFragments) args.push('--concurrent-fragments', String(concurrentFragments));
   if (limitRateKBps && limitRateKBps > 0) args.push('--limit-rate', `${limitRateKBps}K`);
   if (cookiesFromBrowser) args.push('--cookies-from-browser', cookiesFromBrowser);
+  if (proxyUrl) args.push('--proxy', proxyUrl);
 
   if (extractAudio) {
     args.push('-x', '--audio-format', container === 'mp3' ? 'mp3' : 'flac', '--audio-quality', '0');

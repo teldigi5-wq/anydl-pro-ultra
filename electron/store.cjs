@@ -30,7 +30,9 @@ const DEFAULTS = {
   },
   useSystemYtDlp: false,
   clipboardWatch: false,
-  globalLimitRateKBps: 0
+  globalLimitRateKBps: 0,
+  proxyEnabled: false,
+  proxyUrl: ''
 };
 
 function filePath() {

@@ -39,6 +39,7 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
   const [canGoForward, setCanGoForward] = useState(false);
   const [detectedMedia, setDetectedMedia] = useState<DetectedMediaEvent[]>([]);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [preloadPath, setPreloadPath] = useState<string | null>(null);
 
   // Manual sniffer (paste a link directly, no browsing needed)
   const [manualUrl, setManualUrl] = useState('');
@@ -49,6 +50,7 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
   useEffect(() => {
     if (!isElectron) return;
     api.getBrowserPartition().then(setPartition);
+    api.getBrowserPreloadPath().then(setPreloadPath);
     const unsubscribe = api.onMediaDetected((evt) => {
       setDetectedMedia(prev => {
         if (prev.some(m => m.url === evt.url)) return prev;
@@ -75,12 +77,18 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
       e.preventDefault?.();
       if (e.url) wv.loadURL(e.url);
     };
+    const onIpcMessage = (e: any) => {
+      if (e.channel === 'anydl:download-clicked' && e.args?.[0]?.url) {
+        handleAnalyzeDetected(e.args[0].url);
+      }
+    };
 
     wv.addEventListener('did-start-loading', onStart);
     wv.addEventListener('did-stop-loading', onStop);
     wv.addEventListener('did-navigate', onStop);
     wv.addEventListener('did-navigate-in-page', onStop);
     wv.addEventListener('new-window', onNewWindow);
+    wv.addEventListener('ipc-message', onIpcMessage);
 
     return () => {
       wv.removeEventListener('did-start-loading', onStart);
@@ -88,6 +96,7 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
       wv.removeEventListener('did-navigate', onStop);
       wv.removeEventListener('did-navigate-in-page', onStop);
       wv.removeEventListener('new-window', onNewWindow);
+      wv.removeEventListener('ipc-message', onIpcMessage);
     };
   }, [partition]);
 
@@ -182,7 +191,7 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
             {isElectron && partition ? (
               <webview
                 ref={webviewRef as any}
-                {...({ src: addressInput, partition, allowpopups: 'true' } as any)}
+                {...({ src: addressInput, partition, allowpopups: 'true', preload: preloadPath || undefined } as any)}
                 style={{ width: '100%', height: '100%' }}
               />
             ) : (

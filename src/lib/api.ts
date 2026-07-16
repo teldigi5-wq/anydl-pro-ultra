@@ -26,6 +26,8 @@ export interface AppSettings {
   useSystemYtDlp: boolean;
   clipboardWatch: boolean;
   globalLimitRateKBps: number;
+  proxyEnabled: boolean;
+  proxyUrl: string;
 }
 
 export interface DownloadStartTask {
@@ -114,6 +116,7 @@ interface AnydlBridge {
   onDownloadEvent(cb: (evt: DownloadEvent) => void): () => void;
   onSystemStats(cb: (stats: SystemStatsPayload) => void): () => void;
   getBrowserPartition(): Promise<string>;
+  getBrowserPreloadPath(): Promise<string>;
   onMediaDetected(cb: (evt: DetectedMediaEvent) => void): () => void;
   getHistory(): Promise<HistoryEntry[]>;
   clearHistory(): Promise<HistoryEntry[]>;
@@ -202,6 +205,10 @@ export const api = {
   async getBrowserPartition(): Promise<string | null> {
     if (!window.anydl) return null;
     return window.anydl.getBrowserPartition();
+  },
+  async getBrowserPreloadPath(): Promise<string | null> {
+    if (!window.anydl) return null;
+    return window.anydl.getBrowserPreloadPath();
   },
   onMediaDetected(cb: (evt: DetectedMediaEvent) => void) {
     if (!window.anydl) return () => {};

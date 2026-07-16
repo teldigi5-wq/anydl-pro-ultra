@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings, FolderOpen, Bell, Keyboard, Monitor, HardDrive,
-  Download, Zap, Check, Cpu, Clipboard, History, Trash2, FileVideo
+  Download, Zap, Check, Cpu, Clipboard, History, Trash2, FileVideo, Shield
 } from 'lucide-react';
 import { api, isElectron, HistoryEntry } from '../lib/api';
 
@@ -22,6 +22,10 @@ interface SettingsPanelProps {
   onClearHistory: () => void;
   globalLimitRateKBps: number;
   setGlobalLimitRateKBps: (n: number) => void;
+  proxyEnabled: boolean;
+  setProxyEnabled: (v: boolean) => void;
+  proxyUrl: string;
+  setProxyUrl: (v: string) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -39,7 +43,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   history,
   onClearHistory,
   globalLimitRateKBps,
-  setGlobalLimitRateKBps
+  setGlobalLimitRateKBps,
+  proxyEnabled,
+  setProxyEnabled,
+  proxyUrl,
+  setProxyUrl
 }) => {
   const chooseFolder = async () => {
     const picked = await api.chooseFolder();
@@ -130,6 +138,29 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
               Real yt-dlp --limit-rate cap applied to every new download. 0 = unlimited (uses your full connection).
             </p>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-800/60">
+            <label className="text-[11px] font-mono flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+              <Shield className="w-3.5 h-3.5" /> Proxy / VPN Connection
+            </label>
+            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Not a built-in VPN service — there's no free server infrastructure to honestly offer here. This routes
+              the embedded browser and downloads through <strong>your own</strong> proxy or VPN endpoint (SOCKS5 or HTTP), same as any real VPN's connection details.
+            </p>
+            <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-primary)' }}>
+              <input type="checkbox" checked={proxyEnabled} onChange={(e) => setProxyEnabled(e.target.checked)} className="accent-cyan-500 w-4 h-4" />
+              Enable proxy / VPN routing
+            </label>
+            <input
+              type="text"
+              value={proxyUrl}
+              onChange={(e) => setProxyUrl(e.target.value)}
+              disabled={!proxyEnabled}
+              placeholder="socks5://host:port or http://user:pass@host:port"
+              className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none disabled:opacity-40"
+              style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

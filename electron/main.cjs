@@ -69,9 +69,23 @@ function guessMediaKind(url, contentType) {
   return 'Media Stream';
 }
 
+async function applyProxyToSession(ses) {
+  const settings = store.getAll();
+  try {
+    if (settings.proxyEnabled && settings.proxyUrl) {
+      await ses.setProxy({ proxyRules: settings.proxyUrl });
+    } else {
+      await ses.setProxy({ mode: 'direct' });
+    }
+  } catch (e) {
+    console.error('[proxy] failed to apply', e);
+  }
+}
+
 function setupBrowserNetworkSniffer() {
   const { session } = require('electron');
   const ses = session.fromPartition(BROWSER_PARTITION);
+  applyProxyToSession(ses);
 
   ses.webRequest.onHeadersReceived((details, callback) => {
     try {
@@ -206,6 +220,10 @@ ipcMain.handle('settings:getAll', () => store.getAll());
 ipcMain.handle('settings:set', (_e, key, value) => {
   const data = store.set(key, value);
   if (key === 'autoStart') applyAutoStart(value);
+  if (key === 'proxyEnabled' || key === 'proxyUrl') {
+    const { session } = require('electron');
+    applyProxyToSession(session.fromPartition(BROWSER_PARTITION));
+  }
   return data;
 });
 
@@ -266,7 +284,8 @@ ipcMain.handle('download:start', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
   const id = task.id;
-  engine.startDownload(id, { ...task, outputDir }, settings, makeDownloadEventHandler(task, settings));
+  const proxyUrl = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : undefined;
+  engine.startDownload(id, { ...task, outputDir, proxyUrl }, settings, makeDownloadEventHandler(task, settings));
   return { ok: true, id };
 });
 
@@ -275,9 +294,11 @@ ipcMain.handle('download:pause', (_e, id) => ({ ok: engine.pauseDownload(id) }))
 ipcMain.handle('download:resume', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
-  engine.startDownload(task.id, { ...task, outputDir }, settings, makeDownloadEventHandler(task, settings));
+  const proxyUrl = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : undefined;
+  engine.startDownload(task.id, { ...task, outputDir, proxyUrl }, settings, makeDownloadEventHandler(task, settings));
   return { ok: true };
 });
 
 ipcMain.handle('app:platform', () => process.platform);
 ipcMain.handle('browser:partition', () => BROWSER_PARTITION);
+ipcMain.handle('browser:preload-path', () => `file://${path.join(__dirname, 'webview-preload.cjs')}`);
