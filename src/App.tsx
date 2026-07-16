@@ -395,7 +395,7 @@ export default function App() {
       ? ['en.*', 'all']
       : selectedSubLanguages.slice(0, 5).map(l => `${l}.*`);
 
-    const outputFormat: DownloadTask['outputFormat'] = opts.extractAudio ? 'mp3' : (opts.embedSubtitles ? 'mkv' : format.ext as any);
+    const outputFormat: DownloadTask['outputFormat'] = opts.extractAudio ? 'mp3' : (format.ext as any || 'mp4');
 
     const activeCount = tasks.filter(t => t.status === 'downloading' || t.status === 'merging').length;
     const willQueue = activeCount >= maxConcurrent;

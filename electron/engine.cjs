@@ -352,7 +352,7 @@ function buildDownloadArgs(params) {
     args.push('-x', '--audio-format', container === 'mp3' ? 'mp3' : 'flac', '--audio-quality', '0');
   } else {
     args.push('-f', formatSelector);
-    const mergeContainer = embedSubtitles ? 'mkv' : (container || 'mp4');
+    const mergeContainer = container || 'mp4';
     args.push('--merge-output-format', mergeContainer);
   }
 
