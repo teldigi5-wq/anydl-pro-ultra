@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { VideoAnalysisResult, VideoFormatOption } from '../types';
 import { calculateEstimatedSizeMB, calculateETASeconds, formatDuration, generateYtDlpCommand } from '../utils/qualityEngine';
 import { api, isElectron } from '../lib/api';
+import { useTilt3D } from '../hooks/useTilt3D';
 import {
   Search, Sliders, Film, Radio, Cpu, Copy, Check, Sparkles,
   DownloadCloud, Image, Subtitles, Volume2, Ban, MonitorPlay, AlertTriangle
@@ -43,6 +44,7 @@ export const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
   const [copiedSyntax, setCopiedSyntax] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const tilt = useTilt3D(8);
 
   const runAnalyze = async (rawUrl: string) => {
     const url = rawUrl.trim();
@@ -213,7 +215,12 @@ export const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
             transition={{ delay: 0.1 }}
             className="perspective-1000"
           >
-            <div className="rounded-3xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-2xl card-3d-hover">
+            <div
+              ref={tilt.ref}
+              onPointerMove={tilt.onPointerMove}
+              onPointerLeave={tilt.onPointerLeave}
+              className="rounded-3xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-2xl card-3d-hover glass-tilt"
+            >
               <div className="relative aspect-video w-full overflow-hidden bg-black group">
                 <img
                   src={activeVideo.thumbnailUrl}

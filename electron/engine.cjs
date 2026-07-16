@@ -324,6 +324,13 @@ function toMB(value, unit) {
   return n; // MiB
 }
 
+let subtitleCooldownUntil = 0;
+const SUBTITLE_429_RE = /subtitle.*429|429.*too many requests/i;
+
+function isSubtitleCooldownActive() {
+  return Date.now() < subtitleCooldownUntil;
+}
+
 function buildDownloadArgs(params) {
   const {
     url, formatSelector, outputDir, container, embedThumbnail, embedSubtitles,
@@ -331,7 +338,7 @@ function buildDownloadArgs(params) {
     concurrentFragments, retries, limitRateKBps, smartTools, cookiesFromBrowser
   } = params;
 
-  const args = ['--newline', '--no-warnings', '--no-playlist', '--ignore-config'];
+  const args = ['--newline', '--no-warnings', '--no-playlist', '--ignore-config', '--ignore-errors'];
   args.push('--retries', String(retries || 10), '--fragment-retries', String(retries || 10));
   if (concurrentFragments) args.push('--concurrent-fragments', String(concurrentFragments));
   if (limitRateKBps && limitRateKBps > 0) args.push('--limit-rate', `${limitRateKBps}K`);
@@ -351,17 +358,20 @@ function buildDownloadArgs(params) {
   args.push('--no-write-info-json', '--no-write-thumbnail', '--no-write-description');
   if (smartTools?.chapterMarkers) args.push('--embed-chapters');
 
-  if (embedSubtitles || burnInSubtitles) {
+  if ((embedSubtitles || burnInSubtitles) && !isSubtitleCooldownActive()) {
     const langs = (subtitleLangs && subtitleLangs.length ? subtitleLangs : ['en.*', 'all']).join(',');
     args.push('--write-subs', '--write-auto-subs', '--sub-langs', langs, '--convert-subs', 'srt');
     // Real protection against YouTube's subtitle-endpoint rate limiting (HTTP 429),
     // which is what turned an otherwise-successful download into a false failure.
-    args.push('--sleep-subtitles', '1');
+    args.push('--sleep-subtitles', '2', '--extractor-retries', '3');
     if (burnInSubtitles) {
       // Burn-in requires a real ffmpeg re-encode pass; embed as soft subs otherwise.
       args.push('--postprocessor-args', 'EmbedSubtitle+ffmpeg:-c:v libx264 -crf 20');
     }
     if (embedSubtitles) args.push('--embed-subs');
+  } else if ((embedSubtitles || burnInSubtitles) && isSubtitleCooldownActive()) {
+    const minsLeft = Math.ceil((subtitleCooldownUntil - Date.now()) / 60000);
+    params.__subtitleSkippedNote = `Subtitles skipped for this download — YouTube rate-limited the subtitle endpoint recently, cooling down for ~${minsLeft} more minute(s) to avoid repeating the failure. The video itself downloads normally.`;
   }
 
   if (useSponsorBlock) args.push('--sponsorblock-remove', 'all');
@@ -429,6 +439,9 @@ function startDownload(id, params, settings, onEvent) {
   const { ytdlp, ffmpeg } = getPaths(settings);
   const args = buildDownloadArgs(params);
   onEvent({ id, type: 'log', message: `[engine] ${path.basename(ytdlp.path)} ${args.join(' ')}` });
+  if (params.__subtitleSkippedNote) {
+    onEvent({ id, type: 'log', message: `[engine] ${params.__subtitleSkippedNote}` });
+  }
 
   const env = { ...process.env };
   // Make sure yt-dlp can find our bundled ffmpeg for merging/postprocessing.
@@ -448,6 +461,11 @@ function startDownload(id, params, settings, onEvent) {
   const handleLine = (line) => {
     if (!line) return;
     onEvent({ id, type: 'log', message: line });
+
+    if (SUBTITLE_429_RE.test(line) && !isSubtitleCooldownActive()) {
+      subtitleCooldownUntil = Date.now() + 5 * 60 * 1000;
+      onEvent({ id, type: 'log', message: '[engine] YouTube rate-limited the subtitle endpoint (429) — pausing subtitle fetching for 5 minutes across all downloads so this stops recurring. Video downloads are unaffected.' });
+    }
 
     const destMatch = DEST_RE.exec(line) || MERGE_RE.exec(line);
     if (destMatch) lastFilePath = destMatch[1];
