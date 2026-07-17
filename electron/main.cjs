@@ -285,7 +285,8 @@ ipcMain.handle('download:start', async (_e, task) => {
   const outputDir = settings.downloadPath || await ensureDownloadDir();
   const id = task.id;
   const proxyUrl = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : undefined;
-  engine.startDownload(id, { ...task, outputDir, proxyUrl }, settings, makeDownloadEventHandler(task, settings));
+  const useAria2 = settings.useAria2 !== false;
+  engine.startDownload(id, { ...task, outputDir, proxyUrl, useAria2 }, settings, makeDownloadEventHandler(task, settings));
   return { ok: true, id };
 });
 
@@ -295,7 +296,8 @@ ipcMain.handle('download:resume', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
   const proxyUrl = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : undefined;
-  engine.startDownload(task.id, { ...task, outputDir, proxyUrl }, settings, makeDownloadEventHandler(task, settings));
+  const useAria2 = settings.useAria2 !== false;
+  engine.startDownload(task.id, { ...task, outputDir, proxyUrl, useAria2 }, settings, makeDownloadEventHandler(task, settings));
   return { ok: true };
 });
 

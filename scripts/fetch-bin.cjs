@@ -18,6 +18,7 @@ const OUT_DIR = path.join(__dirname, '..', 'resources', 'bin');
 const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
 const FFMPEG_ZIP_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip';
 const REALESRGAN_ZIP_URL = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
+const ARIA2_ZIP_URL = 'https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip';
 const ESRGAN_ZIP_URL = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
 
 function download(url, dest, redirects = 0) {
@@ -83,6 +84,21 @@ async function main() {
   }
   fs.unlinkSync(esrganZip);
   console.log('[fetch-bin] Real-ESRGAN OK');
+
+  console.log('[fetch-bin] Downloading aria2c (multi-connection downloader) ...');
+  const aria2Zip = path.join(OUT_DIR, 'aria2.zip');
+  await download(ARIA2_ZIP_URL, aria2Zip);
+  try {
+    execFileSync('unzip', ['-o', '-j', aria2Zip, '*/aria2c.exe', '-d', OUT_DIR], { stdio: 'inherit' });
+  } catch {
+    execFileSync('powershell', ['-Command',
+      `Expand-Archive -Force '${aria2Zip}' '${OUT_DIR}\\_aria2_tmp'; ` +
+      `Get-ChildItem -Recurse '${OUT_DIR}\\_aria2_tmp' -Include aria2c.exe | Move-Item -Destination '${OUT_DIR}' -Force; ` +
+      `Remove-Item -Recurse -Force '${OUT_DIR}\\_aria2_tmp'`
+    ], { stdio: 'inherit' });
+  }
+  fs.unlinkSync(aria2Zip);
+  console.log('[fetch-bin] aria2c OK');
 
   console.log('[fetch-bin] Done. Binaries in', OUT_DIR);
 }

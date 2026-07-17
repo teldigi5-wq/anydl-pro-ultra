@@ -68,7 +68,10 @@ function agentForLog(message: string): { agentName: AgentLog['agentName']; agent
   if (/\[download\]/i.test(message)) {
     return { agentName: 'SpeedDaemon', agentRole: 'Network Accelerator' };
   }
-  if (/proxy|retry|error/i.test(message)) {
+  if (/proxy|--proxy/i.test(message)) {
+    return { agentName: 'ProxyPilot', agentRole: 'Proxy / VPN Router' };
+  }
+  if (/retry|error|429/i.test(message)) {
     return { agentName: 'ProxyGuard', agentRole: 'Reliability & Retry Watcher' };
   }
   return { agentName: 'ScoutAgent', agentRole: 'Recon Specialist' };
@@ -123,6 +126,7 @@ export default function App() {
   const speedHistoryRef = useRef<Map<string, number[]>>(new Map());
   const [globalLimitRateKBps, setGlobalLimitRateKBpsState] = useState(0);
   const [proxyEnabled, setProxyEnabledState] = useState(false);
+  const [useAria2, setUseAria2State] = useState(true);
   const [proxyUrl, setProxyUrlState] = useState('');
 
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
@@ -146,6 +150,7 @@ export default function App() {
         setClipboardWatchState(!!settings.clipboardWatch);
         setGlobalLimitRateKBpsState(settings.globalLimitRateKBps || 0);
         setProxyEnabledState(!!settings.proxyEnabled);
+        setUseAria2State(settings.useAria2 !== false);
         setProxyUrlState(settings.proxyUrl || '');
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
       }
@@ -240,6 +245,11 @@ export default function App() {
             if (notifications) addToast(`Download complete: ${next.title.slice(0, 40)}`, 'success');
             next = { ...next, status: 'completed', progressPercent: 100, downloadedMB: next.totalSizeMB, filePath: evt.filePath, completedAt: new Date() };
             api.getHistory().then(setHistory);
+            setAgentLogs(prev => [...prev.slice(-80), {
+              id: 'history-' + Date.now(), timestamp: new Date().toLocaleTimeString(),
+              agentName: 'HistoryKeeper', agentRole: 'Download History Archivist',
+              message: `Archived "${next.title.slice(0, 50)}" to persistent history.`, status: 'success'
+            }]);
           } else if (evt.type === 'error') {
             if (notifications) addToast(`Download failed: ${next.title.slice(0, 40)}`, 'error');
             next = { ...next, status: 'error', errorMessage: evt.message };
@@ -317,6 +327,11 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = api.onClipboardUrl(async (url) => {
       if (!clipboardWatch) return;
+      setAgentLogs(prev => [...prev.slice(-80), {
+        id: 'clip-' + Date.now(), timestamp: new Date().toLocaleTimeString(),
+        agentName: 'ClipboardWatcher', agentRole: 'Background Link Detector',
+        message: `Detected new clipboard link: ${url.slice(0, 60)}`, status: 'action'
+      }]);
       addToast('Clipboard watch: analyzing new link...', 'info');
       const res = await api.analyzeUrl(url);
       if (res.ok) {
@@ -349,6 +364,11 @@ export default function App() {
     if (toPromote.length === 0) return;
 
     toPromote.forEach(t => promotedIdsRef.current.add(t.id));
+    setAgentLogs(prev => [...prev.slice(-80), ...toPromote.map(t => ({
+      id: 'queue-' + t.id + '-' + Date.now(), timestamp: new Date().toLocaleTimeString(),
+      agentName: 'QueueGuard' as const, agentRole: 'Concurrency Queue Manager',
+      message: `Promoted "${t.title.slice(0, 40)}" from queue — slot freed up.`, status: 'action' as const
+    }))]);
     setTasks(prev => prev.map(t => toPromote.some(p => p.id === t.id) ? { ...t, status: 'downloading' } : t));
     toPromote.forEach(t => {
       const params = taskParamsRef.current.get(t.id);
@@ -385,7 +405,7 @@ export default function App() {
     const { video, format, crf } = params;
     const id = 'task-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 
-    const totalMB = calculateEstimatedSizeMB(format, video.durationSeconds, crf);
+    const totalMB = format.exactSizeMB ?? calculateEstimatedSizeMB(format, video.durationSeconds, crf);
     const eta = calculateETASeconds(totalMB, userSpeedMbps);
     const subTracks = detectSubtitlesForPlatform(video.platform, video.subtitlesAvailable);
     // 'all' is now only ever present if the user explicitly picked it in Subtitle
@@ -428,6 +448,7 @@ export default function App() {
       burnInSubtitles, subtitleLangs: subLangs,
       concurrentFragments: opts.concurrentFragments, retries: opts.retries,
       smartTools, title: video.title, resolution: format.resolution,
+      useAria2,
       limitRateKBps: globalLimitRateKBps > 0 ? globalLimitRateKBps : undefined
     };
     taskParamsRef.current.set(id, startParams);
@@ -533,6 +554,7 @@ export default function App() {
   const setClipboardWatch = useCallback((v: boolean) => { setClipboardWatchState(v); api.setSetting('clipboardWatch', v); }, []);
   const setGlobalLimitRateKBps = useCallback((n: number) => { setGlobalLimitRateKBpsState(n); api.setSetting('globalLimitRateKBps', n); }, []);
   const setProxyEnabled = useCallback((v: boolean) => { setProxyEnabledState(v); api.setSetting('proxyEnabled', v); }, []);
+  const setUseAria2 = useCallback((v: boolean) => { setUseAria2State(v); api.setSetting('useAria2', v); }, []);
   const setProxyUrl = useCallback((v: string) => { setProxyUrlState(v); api.setSetting('proxyUrl', v); }, []);
 
   useEffect(() => { if (settingsLoaded) api.setSetting('embedSubtitles', embedSubtitles); }, [embedSubtitles, settingsLoaded]);
@@ -723,6 +745,8 @@ export default function App() {
                   setProxyEnabled={setProxyEnabled}
                   proxyUrl={proxyUrl}
                   setProxyUrl={setProxyUrl}
+                  useAria2={useAria2}
+                  setUseAria2={setUseAria2}
                 />
               </motion.div>
             )}

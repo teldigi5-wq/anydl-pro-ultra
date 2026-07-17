@@ -32,7 +32,8 @@ const DEFAULTS = {
   clipboardWatch: false,
   globalLimitRateKBps: 0,
   proxyEnabled: false,
-  proxyUrl: ''
+  proxyUrl: '',
+  useAria2: true
 };
 
 function filePath() {

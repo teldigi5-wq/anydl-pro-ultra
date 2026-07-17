@@ -187,7 +187,7 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3">
-          <div className="xl:col-span-2 bg-black" style={{ height: 460 }}>
+          <div className="xl:col-span-2 bg-black" style={{ height: '72vh', minHeight: 560 }}>
             {isElectron && partition ? (
               <webview
                 ref={webviewRef as any}
@@ -205,7 +205,7 @@ export const BuiltInBrowser: React.FC<BuiltInBrowserProps> = ({
             )}
           </div>
 
-          <div className="border-t xl:border-t-0 xl:border-l border-slate-800 flex flex-col" style={{ maxHeight: 460 }}>
+          <div className="border-t xl:border-t-0 xl:border-l border-slate-800 flex flex-col" style={{ maxHeight: '72vh', minHeight: 560 }}>
             <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Radio className="w-4 h-4 text-emerald-400 animate-pulse" /> Live Network Sniffer

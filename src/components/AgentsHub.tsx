@@ -57,6 +57,26 @@ const agentsList = [
     name: 'ProxyGuard', role: 'Reliability & Retry Watcher', avatar: '🛡️',
     color: 'from-slate-500 to-slate-700',
     desc: 'Watches for real retry/error output and flags connection issues as they happen.'
+  },
+  {
+    name: 'QueueGuard', role: 'Concurrency Queue Manager', avatar: '📋',
+    color: 'from-teal-500 to-cyan-700',
+    desc: 'Enforces your real max-concurrent-downloads limit, promoting queued jobs by priority as slots free up.'
+  },
+  {
+    name: 'ProxyPilot', role: 'Proxy / VPN Router', avatar: '🌐',
+    color: 'from-blue-500 to-indigo-700',
+    desc: 'Applies your real configured proxy/VPN endpoint to both the browser session and yt-dlp downloads.'
+  },
+  {
+    name: 'HistoryKeeper', role: 'Download History Archivist', avatar: '🗃️',
+    color: 'from-amber-600 to-yellow-700',
+    desc: 'Writes every real completed download to disk so your history survives an app restart.'
+  },
+  {
+    name: 'ClipboardWatcher', role: 'Background Link Detector', avatar: '📎',
+    color: 'from-fuchsia-500 to-purple-700',
+    desc: 'Polls the real OS clipboard and flags new links the moment you copy one, if Auto-Watch is on.'
   }
 ];
 

@@ -82,7 +82,8 @@ export interface AgentLog {
   id: string;
   timestamp: string;
   agentName: 'ScoutAgent' | 'CodecMaster' | 'QueueGuard' | 'MediaSmith' | 'SpeedDaemon' | 'ProxyGuard'
-    | 'SponsorHunter' | 'WatermarkWiper' | 'UpscaleEngine' | 'SubtitleSync' | 'ThumbnailArtist';
+    | 'SponsorHunter' | 'WatermarkWiper' | 'UpscaleEngine' | 'SubtitleSync' | 'ThumbnailArtist'
+    | 'ProxyPilot' | 'HistoryKeeper' | 'ClipboardWatcher';
   agentRole: string;
   message: string;
   status: 'info' | 'success' | 'warning' | 'action' | 'error';

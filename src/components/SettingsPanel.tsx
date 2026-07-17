@@ -26,6 +26,8 @@ interface SettingsPanelProps {
   setProxyEnabled: (v: boolean) => void;
   proxyUrl: string;
   setProxyUrl: (v: string) => void;
+  useAria2: boolean;
+  setUseAria2: (v: boolean) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -47,7 +49,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   proxyEnabled,
   setProxyEnabled,
   proxyUrl,
-  setProxyUrl
+  setProxyUrl,
+  useAria2,
+  setUseAria2
 }) => {
   const chooseFolder = async () => {
     const picked = await api.chooseFolder();
@@ -125,6 +129,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>How many yt-dlp jobs can run at the same time.</p>
           </div>
 
+          <div className="p-3 rounded-2xl border" style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-color)' }}>
+            <label className="flex items-center gap-2 text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+              <input type="checkbox" checked={useAria2} onChange={(e) => setUseAria2(e.target.checked)} className="accent-cyan-500 w-4 h-4" />
+              <Zap className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} /> Fast Mode (aria2c, real 16-connection downloading)
+            </label>
+            <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Most CDNs (YouTube included) throttle a single connection well below a fast line's real speed. This bundles
+              the real, open-source aria2c downloader to fetch each file over 16 real parallel connections instead of one.
+              Leave this on if you're on a fast connection like 5G/fiber.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <label className="text-[11px] font-mono flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
               <Download className="w-3.5 h-3.5" /> Bandwidth Limit: {globalLimitRateKBps > 0 ? `${globalLimitRateKBps} KB/s` : 'Unlimited'}
@@ -152,6 +168,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <input type="checkbox" checked={proxyEnabled} onChange={(e) => setProxyEnabled(e.target.checked)} className="accent-cyan-500 w-4 h-4" />
               Enable proxy / VPN routing
             </label>
+            <div className="flex gap-1.5">
+              {['socks5://', 'http://', 'https://'].map(scheme => (
+                <button
+                  key={scheme}
+                  type="button"
+                  onClick={() => setProxyUrl(proxyUrl.replace(/^[a-z0-9]+:\/\//i, '') ? scheme + proxyUrl.replace(/^[a-z0-9]+:\/\//i, '') : scheme)}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-mono border"
+                  style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+                >
+                  {scheme}
+                </button>
+              ))}
+            </div>
             <input
               type="text"
               value={proxyUrl}

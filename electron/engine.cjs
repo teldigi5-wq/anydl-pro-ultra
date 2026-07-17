@@ -54,6 +54,11 @@ function getRealesrganPaths() {
   };
 }
 
+function getAria2Path() {
+  const exe = path.join(bundledBinDir(), exeName('aria2c'));
+  return { exe, available: fs.existsSync(exe) };
+}
+
 function getVersion(binPath) {
   return new Promise((resolve) => {
     execFile(binPath, ['-version' in {} ? '-version' : '--version'], { timeout: 8000 }, () => {});
@@ -338,11 +343,26 @@ function buildDownloadArgs(params) {
   const {
     url, formatSelector, outputDir, container, embedThumbnail, embedSubtitles,
     extractAudio, useSponsorBlock, burnInSubtitles, subtitleLangs,
-    concurrentFragments, retries, limitRateKBps, smartTools, cookiesFromBrowser, proxyUrl
+    concurrentFragments, retries, limitRateKBps, smartTools, cookiesFromBrowser, proxyUrl,
+    useAria2
   } = params;
 
   const args = ['--newline', '--no-warnings', '--no-playlist', '--ignore-config', '--ignore-errors'];
   args.push('--retries', String(retries || 10), '--fragment-retries', String(retries || 10));
+  // Real fix for "fast connection, slow download": most video CDNs (YouTube's
+  // googlevideo.com included) throttle a single HTTP connection well below
+  // what your real internet can do. Splitting the file into chunks and
+  // fetching them with multiple concurrent connections is what actually
+  // saturates a fast line — --http-chunk-size makes this apply even to
+  // plain (non-fragmented) progressive downloads, not just DASH/HLS.
+  args.push('--http-chunk-size', '10M');
+
+  const aria2 = useAria2 ? getAria2Path() : { available: false };
+  if (aria2.available) {
+    // True external multi-connection downloader — typically the single
+    // biggest real speed improvement against CDN per-connection throttling.
+    args.push('--downloader', aria2.exe, '--downloader-args', `aria2c:-x 16 -s 16 -k 1M --max-connection-per-server=16 --file-allocation=none`);
+  }
   if (concurrentFragments) args.push('--concurrent-fragments', String(concurrentFragments));
   if (limitRateKBps && limitRateKBps > 0) args.push('--limit-rate', `${limitRateKBps}K`);
   if (cookiesFromBrowser) args.push('--cookies-from-browser', cookiesFromBrowser);
@@ -411,7 +431,9 @@ function buildDownloadArgs(params) {
   if (smartTools?.multiAudioTracks) args.push('--audio-multistreams');
   if (smartTools?.splitByChapters) args.push('--split-chapters');
 
-  const outTemplate = path.join(outputDir, '%(title).150B [%(resolution)s].%(ext)s');
+  const outTemplate = extractAudio
+    ? path.join(outputDir, '%(title).150B [Audio].%(ext)s')
+    : path.join(outputDir, '%(title).150B [%(height)sp].%(ext)s');
   args.push('-o', outTemplate);
   args.push(url);
   return args;

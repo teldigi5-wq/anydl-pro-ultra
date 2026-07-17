@@ -28,6 +28,7 @@ export interface AppSettings {
   globalLimitRateKBps: number;
   proxyEnabled: boolean;
   proxyUrl: string;
+  useAria2: boolean;
 }
 
 export interface DownloadStartTask {
@@ -45,6 +46,7 @@ export interface DownloadStartTask {
   concurrentFragments: number;
   retries: number;
   limitRateKBps?: number;
+  useAria2?: boolean;
   smartTools?: Record<string, any>;
   title?: string;
   resolution?: string;
