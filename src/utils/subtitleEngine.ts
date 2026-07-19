@@ -36,6 +36,7 @@ const LANGUAGE_MAP: Record<string, string> = {
   th: 'Thai', id: 'Indonesian', sv: 'Swedish', no: 'Norwegian',
   fi: 'Finnish', da: 'Danish', cs: 'Czech', el: 'Greek',
   he: 'Hebrew', uk: 'Ukrainian', ro: 'Romanian', hu: 'Hungarian',
+  si: 'Sinhala', ta: 'Tamil', bn: 'Bengali', ur: 'Urdu',
   auto: 'Auto-Generated'
 };
 

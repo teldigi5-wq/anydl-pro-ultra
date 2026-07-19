@@ -19,6 +19,8 @@ interface SubtitleStudioProps {
 
 const ALL_LANGS = [
   { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'si', label: 'Sinhala', flag: '🇱🇰' },
+  { code: 'ta', label: 'Tamil', flag: '🇱🇰' },
   { code: 'es', label: 'Spanish', flag: '🇪🇸' },
   { code: 'fr', label: 'French', flag: '🇫🇷' },
   { code: 'de', label: 'German', flag: '🇩🇪' },
