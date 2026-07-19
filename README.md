@@ -81,3 +81,14 @@ npm run dist          # builds the frontend, fetches real binaries, packages the
 The installer lands in `release/AnyDL Pro Ultra-Setup-*.exe`. This step must
 run on Windows (or with Wine) because `electron-builder`'s NSIS installer is
 a native Windows format.
+
+## What I simplified from the original mockup
+
+The original project was a beautifully designed but entirely simulated UI —
+fake progress math, a hardcoded 5-video sample list matched against typed
+URLs, random system stats, and an unused Python WebSocket bridge script. This
+version keeps the UI and rewires it to a real backend. A few things were
+intentionally scaled back rather than faked further — see "Smart tools" and
+"Universal Sniffer" above. If you want those finished (e.g. a real embedded
+`<webview>` browser with `session.webRequest` network sniffing, or a bundled
+upscaling model), that's a reasonable next step — just ask.

@@ -6,6 +6,15 @@ const store = require('./store.cjs');
 const engine = require('./engine.cjs');
 const aiAgent = require('./aiAgent.cjs');
 
+// Real fix for GPU-driven black-screen/render crashes some Windows machines
+// hit with Electron apps (usually integrated GPU + webview/backdrop-filter
+// combinations). Must run before app.whenReady(). Off by default since it
+// costs some rendering performance; opt-in via Settings if you hit a black
+// screen.
+if (store.getAll().disableHardwareAcceleration) {
+  app.disableHardwareAcceleration();
+}
+
 let mainWindow = null;
 let statsInterval = null;
 let si = null; // lazy-loaded `systeminformation`
@@ -51,6 +60,25 @@ function createWindow() {
   }
 
   mainWindow.on('closed', () => { mainWindow = null; });
+
+  // Real self-healing for the exact "whole UI goes black" failure mode:
+  // if Chromium's renderer or GPU process dies mid-session (the common
+  // real-world trigger on Windows is a GPU driver hiccup under heavy
+  // compositing load — webview + backdrop-filter blur are both real GPU
+  // cost), Electron leaves a blank black window with no automatic
+  // recovery. We detect that and reload the page ourselves.
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[recovery] Renderer process gone:', details.reason, '— reloading window.');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.reload();
+    }
+  });
+  mainWindow.on('unresponsive', () => {
+    console.error('[recovery] Window became unresponsive.');
+  });
+  mainWindow.on('responsive', () => {
+    console.log('[recovery] Window responsive again.');
+  });
 }
 
 const BROWSER_PARTITION = 'persist:anydl-browser';

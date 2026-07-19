@@ -130,6 +130,7 @@ export default function App() {
   const [aiProvider, setAiProviderState] = useState<'groq' | 'anthropic'>('groq');
   const [groqApiKey, setGroqApiKeyState] = useState('');
   const [anthropicApiKey, setAnthropicApiKeyState] = useState('');
+  const [disableHardwareAcceleration, setDisableHardwareAccelerationState] = useState(false);
   const [proxyUrl, setProxyUrlState] = useState('');
 
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
@@ -157,6 +158,7 @@ export default function App() {
         setAiProviderState(settings.aiProvider === 'anthropic' ? 'anthropic' : 'groq');
         setGroqApiKeyState(settings.groqApiKey || '');
         setAnthropicApiKeyState(settings.anthropicApiKey || '');
+        setDisableHardwareAccelerationState(!!settings.disableHardwareAcceleration);
         setProxyUrlState(settings.proxyUrl || '');
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
       }
@@ -581,6 +583,7 @@ export default function App() {
   const setAiProvider = useCallback((v: 'groq' | 'anthropic') => { setAiProviderState(v); api.setSetting('aiProvider', v); }, []);
   const setGroqApiKey = useCallback((v: string) => { setGroqApiKeyState(v); api.setSetting('groqApiKey', v); }, []);
   const setAnthropicApiKey = useCallback((v: string) => { setAnthropicApiKeyState(v); api.setSetting('anthropicApiKey', v); }, []);
+  const setDisableHardwareAcceleration = useCallback((v: boolean) => { setDisableHardwareAccelerationState(v); api.setSetting('disableHardwareAcceleration', v); }, []);
   const setProxyUrl = useCallback((v: string) => { setProxyUrlState(v); api.setSetting('proxyUrl', v); }, []);
 
   useEffect(() => { if (settingsLoaded) api.setSetting('embedSubtitles', embedSubtitles); }, [embedSubtitles, settingsLoaded]);
@@ -783,6 +786,8 @@ export default function App() {
                   setGroqApiKey={setGroqApiKey}
                   anthropicApiKey={anthropicApiKey}
                   setAnthropicApiKey={setAnthropicApiKey}
+                  disableHardwareAcceleration={disableHardwareAcceleration}
+                  setDisableHardwareAcceleration={setDisableHardwareAcceleration}
                 />
               </motion.div>
             )}

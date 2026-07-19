@@ -32,6 +32,7 @@ export interface AppSettings {
   anthropicApiKey: string;
   aiProvider: 'groq' | 'anthropic';
   groqApiKey: string;
+  disableHardwareAcceleration: boolean;
 }
 
 export interface DownloadStartTask {

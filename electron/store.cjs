@@ -36,7 +36,8 @@ const DEFAULTS = {
   useAria2: true,
   anthropicApiKey: '',
   aiProvider: 'groq',
-  groqApiKey: ''
+  groqApiKey: '',
+  disableHardwareAcceleration: false
 };
 
 function filePath() {

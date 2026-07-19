@@ -34,6 +34,8 @@ interface SettingsPanelProps {
   setGroqApiKey: (v: string) => void;
   anthropicApiKey: string;
   setAnthropicApiKey: (v: string) => void;
+  disableHardwareAcceleration: boolean;
+  setDisableHardwareAcceleration: (v: boolean) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -63,7 +65,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   groqApiKey,
   setGroqApiKey,
   anthropicApiKey,
-  setAnthropicApiKey
+  setAnthropicApiKey,
+  disableHardwareAcceleration,
+  setDisableHardwareAcceleration
 }) => {
   const [aiCheckResult, setAiCheckResult] = React.useState<{ ok: boolean; message: string } | null>(null);
   const [aiChecking, setAiChecking] = React.useState(false);
@@ -368,6 +372,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             See the <strong>Windows Bridge</strong> tab for live yt-dlp/ffmpeg version info and an update button.
           </p>
+          <div className="pt-2 border-t border-slate-800/60">
+            <label className="flex items-center gap-2 text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+              <input type="checkbox" checked={disableHardwareAcceleration} onChange={(e) => setDisableHardwareAcceleration(e.target.checked)} className="accent-cyan-500 w-4 h-4" />
+              Disable Hardware Acceleration
+            </label>
+            <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Fixes a real Electron/Chromium bug some Windows GPUs hit: the whole window going black, usually
+              triggered by GPU-heavy effects like the embedded browser or the Liquid Glass theme's blur. Only
+              turn this on if you've actually seen a black screen — it costs some rendering performance, and
+              takes effect after a restart. The app now also auto-recovers from this automatically if it happens.
+            </p>
+          </div>
         </div>
       </div>
 
