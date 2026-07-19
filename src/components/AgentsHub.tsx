@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AgentLog, VideoAnalysisResult } from '../types';
 import { api } from '../lib/api';
-import { Bot, Sparkles, Send, RefreshCw, Terminal, AlertTriangle } from 'lucide-react';
+import {
+  Bot, Sparkles, Send, RefreshCw, Terminal, AlertTriangle,
+  Wand2, CheckCircle2, Key
+} from 'lucide-react';
 
 interface AgentsHubProps {
   logs: AgentLog[];
   onAddLog: (log: AgentLog) => void;
   onSelectVideoForAnalysis: (video: VideoAnalysisResult) => void;
-  onStartAgentDownload: (video: VideoAnalysisResult, crf: number) => void;
+  onStartAgentDownload: (video: VideoAnalysisResult, crf: number, resolutionHint?: string | null) => void;
 }
 
 const URL_RE = /(https?:\/\/[^\s"']+)/i;
@@ -87,6 +90,17 @@ export const AgentsHub: React.FC<AgentsHubProps> = ({
 }) => {
   const [prompt, setPrompt] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{ checked: boolean; ok: boolean; message: string }>({ checked: false, ok: false, message: '' });
+
+  useEffect(() => {
+    api.checkAiKey().then((res) => setAiStatus({ checked: true, ok: res.ok, message: res.message }));
+  }, []);
+
+  const resolutionLabel = (hint: string | null) => {
+    if (!hint) return null;
+    const map: Record<string, string> = { '2160': '2160p (4K)', '1440': '1440p (2K)', '1080': '1080p', '720': '720p', '480': '480p', '360': '360p' };
+    return map[hint] || null;
+  };
 
   const handleRunAgentTask = async (userCommand: string) => {
     if (!userCommand.trim() || isProcessing) return;
@@ -99,24 +113,58 @@ export const AgentsHub: React.FC<AgentsHubProps> = ({
       message: `Received directive: "${userCommand}"`, status: 'action'
     });
 
-    const urlMatch = URL_RE.exec(userCommand);
-    if (!urlMatch) {
+    // Real AI parsing when a key is configured (Groq free tier or Anthropic).
+    // Falls back to plain keyword/URL parsing otherwise — never silently
+    // pretends the fallback is AI.
+    let url: string | null = null;
+    let chosenCrf = 20;
+    let resolutionHint: string | null = null;
+
+    if (aiStatus.ok) {
+      onAddLog({
+        id: 'log-' + Date.now() + '-ai', timestamp: new Date().toLocaleTimeString(),
+        agentName: 'ScoutAgent', agentRole: 'Recon Specialist',
+        message: 'Asking the real AI model to parse this instruction...', status: 'action'
+      });
+      const aiRes = await api.aiParseIntent(userCommand);
+      if (aiRes.ok) {
+        url = aiRes.data.url;
+        if (aiRes.data.crf) chosenCrf = aiRes.data.crf;
+        resolutionHint = aiRes.data.resolutionHint;
+        onAddLog({
+          id: 'log-' + Date.now() + '-ai2', timestamp: new Date().toLocaleTimeString(),
+          agentName: 'ScoutAgent', agentRole: 'Recon Specialist',
+          message: `AI: ${aiRes.data.reasoning}`, status: 'success'
+        });
+      } else {
+        onAddLog({
+          id: 'log-' + Date.now() + '-aierr', timestamp: new Date().toLocaleTimeString(),
+          agentName: 'ScoutAgent', agentRole: 'Recon Specialist',
+          message: `AI parsing failed (${aiRes.error}) — falling back to plain keyword parsing.`, status: 'warning'
+        });
+      }
+    }
+
+    if (!url) {
+      const urlMatch = URL_RE.exec(userCommand);
+      url = urlMatch ? urlMatch[1] : null;
+      const lower = userCommand.toLowerCase();
+      if (lower.includes('lossless') || lower.includes('archival') || lower.includes('high')) chosenCrf = 17;
+      else if (lower.includes('mobile') || lower.includes('small') || lower.includes('compress')) chosenCrf = 28;
+    }
+
+    if (!url) {
       onAddLog({
         id: 'log-' + Date.now() + '-2', timestamp: new Date().toLocaleTimeString(),
         agentName: 'ScoutAgent', agentRole: 'Recon Specialist',
-        message: 'No URL found in that instruction. Paste a real video link (e.g. "download this in 4K CRF 18: https://...") — there\'s no magic web search here, just real yt-dlp on a real link.',
+        message: 'No URL found in that instruction. Paste a real video link — there\'s no magic web search here, just real yt-dlp on a real link.',
         status: 'warning'
       });
       setIsProcessing(false);
       return;
     }
 
-    let chosenCrf = 20;
-    const lower = userCommand.toLowerCase();
-    if (lower.includes('lossless') || lower.includes('archival') || lower.includes('high')) chosenCrf = 17;
-    else if (lower.includes('mobile') || lower.includes('small') || lower.includes('compress')) chosenCrf = 28;
-
-    const res = await api.analyzeUrl(urlMatch[1]);
+    const res = await api.analyzeUrl(url);
     if (!res.ok) {
       onAddLog({
         id: 'log-' + Date.now() + '-err', timestamp: new Date().toLocaleTimeString(),
@@ -133,21 +181,35 @@ export const AgentsHub: React.FC<AgentsHubProps> = ({
       message: `Found "${res.data.title}" on ${res.data.platform} (${res.data.durationSeconds}s).`,
       status: 'success', relatedVideoUrl: res.data.url
     });
+    const resLabel = resolutionLabel(resolutionHint);
     onAddLog({
       id: 'log-' + Date.now() + '-4', timestamp: new Date().toLocaleTimeString(),
       agentName: 'CodecMaster', agentRole: 'CRF & Format Selection',
-      message: `Selected best format ≤${res.data.availableFormats[0].resolution}, CRF = ${chosenCrf}.`,
+      message: `Selected ${resLabel ? `format ≤${resLabel}` : `best format ≤${res.data.availableFormats[0].resolution}`}, CRF = ${chosenCrf}.`,
       status: 'success'
     });
     onAddLog({
       id: 'log-' + Date.now() + '-5', timestamp: new Date().toLocaleTimeString(),
-      agentName: 'MediaSmith', agentRole: 'Post-Processor',
+      agentName: 'ThumbnailArtist', agentRole: 'Post-Processor',
       message: 'Dispatching to the real download engine...', status: 'action'
     });
 
-    onStartAgentDownload(res.data, chosenCrf);
+    onStartAgentDownload(res.data, chosenCrf, resolutionHint);
     setIsProcessing(false);
     setPrompt('');
+  };
+
+  const [explaining, setExplaining] = useState<string | null>(null);
+  const [explanation, setExplanation] = useState<{ id: string; text: string } | null>(null);
+
+  const handleExplainError = async (log: AgentLog) => {
+    if (!aiStatus.ok) return;
+    setExplaining(log.id);
+    setExplanation(null);
+    const res = await api.aiExplainError(log.message);
+    setExplaining(null);
+    if (res.ok) setExplanation({ id: log.id, text: res.data });
+    else setExplanation({ id: log.id, text: `Could not get an AI explanation: ${res.error}` });
   };
 
   const presets = [
@@ -160,19 +222,29 @@ export const AgentsHub: React.FC<AgentsHubProps> = ({
     <div className="space-y-8">
       <div className="rounded-3xl bg-gradient-to-r from-purple-950/60 via-slate-900/80 to-cyan-950/60 border border-slate-800 p-8 shadow-2xl relative overflow-hidden">
         <div className="max-w-3xl">
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
             <span className="p-2.5 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
               <Bot className="w-6 h-6 animate-pulse" />
             </span>
             <span className="text-xs font-mono uppercase font-bold tracking-widest text-purple-300 px-3 py-1 rounded-full bg-purple-950/80 border border-purple-500/40">
               Real Pipeline Activity Feed
             </span>
+            {aiStatus.checked && (
+              <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
+                aiStatus.ok ? 'text-emerald-300 bg-emerald-950/80 border-emerald-500/40' : 'text-amber-300 bg-amber-950/60 border-amber-500/40'
+              }`}>
+                {aiStatus.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
+                {aiStatus.ok ? 'Real AI Connected' : 'No AI key — add a free one in Settings'}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight mb-3">
             Instruct the Download Pipeline in Plain English
           </h1>
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            Paste an instruction with a real link — <span className="text-cyan-300 font-mono">"download this in 4K, CRF 18: https://..."</span> — and this dispatches straight to real yt-dlp/ffmpeg. This isn't a general web-search AI: it needs an actual URL to work with, same as the main Downloader tab.
+            Paste an instruction with a real link. {aiStatus.ok
+              ? <>A real AI model (configured in Settings) parses your quality/format intent, then dispatches to the same real yt-dlp/ffmpeg engine as the Downloader tab.</>
+              : <>Without an AI key this falls back to plain keyword matching — add a free Groq key in Settings for real AI-powered parsing.</>}
           </p>
         </div>
       </div>
@@ -204,7 +276,7 @@ export const AgentsHub: React.FC<AgentsHubProps> = ({
             </h3>
             <p className="text-xs text-slate-400 flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
-              Must contain an actual URL — this parses your instruction for a link and CRF/quality keywords, then runs the same real engine as the Downloader tab.
+              Must contain an actual URL — {aiStatus.ok ? 'a real AI model parses your intent (quality, CRF, audio-only, subtitles)' : 'this parses your instruction for a link and CRF/quality keywords'}, then runs the same real engine as the Downloader tab.
             </p>
 
             <form onSubmit={(e) => { e.preventDefault(); handleRunAgentTask(prompt); }} className="space-y-3">
@@ -275,6 +347,22 @@ export const AgentsHub: React.FC<AgentsHubProps> = ({
                       <span className="text-slate-500 text-[10px]">{log.timestamp}</span>
                     </div>
                     <p className="text-xs text-slate-200 leading-relaxed pt-1 break-all">{log.message}</p>
+                    {log.status === 'error' && aiStatus.ok && (
+                      <button
+                        onClick={() => handleExplainError(log)}
+                        disabled={explaining === log.id}
+                        className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-purple-300 bg-purple-950/60 border border-purple-500/40 px-2.5 py-1 rounded-lg hover:bg-purple-900/60 transition-all disabled:opacity-50"
+                      >
+                        {explaining === log.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                        Explain with real AI
+                      </button>
+                    )}
+                    {explanation?.id === log.id && (
+                      <div className="mt-2 p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 text-xs text-purple-100 leading-relaxed flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-purple-300" />
+                        <span>{explanation.text}</span>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings, FolderOpen, Bell, Keyboard, Monitor, HardDrive,
-  Download, Zap, Check, Cpu, Clipboard, History, Trash2, FileVideo, Shield
+  Download, Zap, Check, Cpu, Clipboard, History, Trash2, FileVideo, Shield, Sparkles
 } from 'lucide-react';
 import { api, isElectron, HistoryEntry } from '../lib/api';
 
@@ -28,6 +28,12 @@ interface SettingsPanelProps {
   setProxyUrl: (v: string) => void;
   useAria2: boolean;
   setUseAria2: (v: boolean) => void;
+  aiProvider: 'groq' | 'anthropic';
+  setAiProvider: (v: 'groq' | 'anthropic') => void;
+  groqApiKey: string;
+  setGroqApiKey: (v: string) => void;
+  anthropicApiKey: string;
+  setAnthropicApiKey: (v: string) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -51,8 +57,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   proxyUrl,
   setProxyUrl,
   useAria2,
-  setUseAria2
+  setUseAria2,
+  aiProvider,
+  setAiProvider,
+  groqApiKey,
+  setGroqApiKey,
+  anthropicApiKey,
+  setAnthropicApiKey
 }) => {
+  const [aiCheckResult, setAiCheckResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+  const [aiChecking, setAiChecking] = React.useState(false);
+  const checkAi = async () => {
+    setAiChecking(true);
+    setAiCheckResult(null);
+    const res = await api.checkAiKey();
+    setAiCheckResult(res);
+    setAiChecking(false);
+  };
   const chooseFolder = async () => {
     const picked = await api.chooseFolder();
     if (picked) setDownloadPath(picked);
@@ -190,6 +211,82 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none disabled:opacity-40"
               style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
             />
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-800/60">
+            <label className="text-[11px] font-mono flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+              <Sparkles className="w-3.5 h-3.5" /> Real AI Agents
+            </label>
+            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Powers real AI parsing in the Agents Hub and AI error explanations. Bring your own key — it's stored
+              locally on this PC and sent directly to the provider, never through us. <strong>Groq's free tier needs no
+              credit card</strong> and is the easiest way to turn this on at zero cost.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAiProvider('groq')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  aiProvider === 'groq' ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300' : 'bg-slate-800/50 border-slate-700 text-slate-400'
+                }`}
+              >
+                Groq (free tier)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiProvider('anthropic')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  aiProvider === 'anthropic' ? 'bg-cyan-950/70 border-cyan-500/50 text-cyan-300' : 'bg-slate-800/50 border-slate-700 text-slate-400'
+                }`}
+              >
+                Anthropic (paid)
+              </button>
+            </div>
+
+            {aiProvider === 'groq' ? (
+              <>
+                <input
+                  type="password"
+                  value={groqApiKey}
+                  onChange={(e) => setGroqApiKey(e.target.value)}
+                  placeholder="gsk_... (free key from console.groq.com)"
+                  className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none"
+                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
+                />
+                <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                  Get a free key: sign up at <span className="font-mono">console.groq.com</span> — no credit card required.
+                </p>
+              </>
+            ) : (
+              <>
+                <input
+                  type="password"
+                  value={anthropicApiKey}
+                  onChange={(e) => setAnthropicApiKey(e.target.value)}
+                  placeholder="sk-ant-... from console.anthropic.com"
+                  className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none"
+                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
+                />
+                <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                  Get a key: sign up at <span className="font-mono">console.anthropic.com</span> — this is a paid API (billed by Anthropic, not us).
+                </p>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={checkAi}
+              disabled={aiChecking}
+              className="w-full py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+            >
+              {aiChecking ? 'Testing connection...' : 'Test AI Connection'}
+            </button>
+            {aiCheckResult && (
+              <p className={`text-[10px] font-mono ${aiCheckResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                {aiCheckResult.ok ? '✓ ' : '✗ '}{aiCheckResult.message}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

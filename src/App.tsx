@@ -127,6 +127,9 @@ export default function App() {
   const [globalLimitRateKBps, setGlobalLimitRateKBpsState] = useState(0);
   const [proxyEnabled, setProxyEnabledState] = useState(false);
   const [useAria2, setUseAria2State] = useState(true);
+  const [aiProvider, setAiProviderState] = useState<'groq' | 'anthropic'>('groq');
+  const [groqApiKey, setGroqApiKeyState] = useState('');
+  const [anthropicApiKey, setAnthropicApiKeyState] = useState('');
   const [proxyUrl, setProxyUrlState] = useState('');
 
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
@@ -151,6 +154,9 @@ export default function App() {
         setGlobalLimitRateKBpsState(settings.globalLimitRateKBps || 0);
         setProxyEnabledState(!!settings.proxyEnabled);
         setUseAria2State(settings.useAria2 !== false);
+        setAiProviderState(settings.aiProvider === 'anthropic' ? 'anthropic' : 'groq');
+        setGroqApiKeyState(settings.groqApiKey || '');
+        setAnthropicApiKeyState(settings.anthropicApiKey || '');
         setProxyUrlState(settings.proxyUrl || '');
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
       }
@@ -522,6 +528,23 @@ export default function App() {
     }));
   }, [addToast]);
 
+  const handleRetryWithUpdate = useCallback(async (task: DownloadTask) => {
+    addToast('Updating yt-dlp before retrying...', 'info');
+    const res = await api.updateYtDlp();
+    setTasks(prev => prev.map(t => t.id === task.id ? {
+      ...t, status: 'downloading',
+      logs: [...t.logs, `[engine] ${res.message || (res.ok ? 'yt-dlp updated.' : 'Update check finished.')}`, '[engine] Retrying download...']
+    } : t));
+    const params = taskParamsRef.current.get(task.id);
+    if (params) {
+      api.resumeDownload(params).then((r) => {
+        if (!r.ok) addToast('Could not retry — desktop app not reachable.', 'error');
+      });
+    } else {
+      addToast('Could not find original download parameters to retry.', 'error');
+    }
+  }, [addToast]);
+
   const handleRemoveTask = useCallback((id: string) => {
     api.cancelDownload(id);
     taskParamsRef.current.delete(id);
@@ -555,6 +578,9 @@ export default function App() {
   const setGlobalLimitRateKBps = useCallback((n: number) => { setGlobalLimitRateKBpsState(n); api.setSetting('globalLimitRateKBps', n); }, []);
   const setProxyEnabled = useCallback((v: boolean) => { setProxyEnabledState(v); api.setSetting('proxyEnabled', v); }, []);
   const setUseAria2 = useCallback((v: boolean) => { setUseAria2State(v); api.setSetting('useAria2', v); }, []);
+  const setAiProvider = useCallback((v: 'groq' | 'anthropic') => { setAiProviderState(v); api.setSetting('aiProvider', v); }, []);
+  const setGroqApiKey = useCallback((v: string) => { setGroqApiKeyState(v); api.setSetting('groqApiKey', v); }, []);
+  const setAnthropicApiKey = useCallback((v: string) => { setAnthropicApiKeyState(v); api.setSetting('anthropicApiKey', v); }, []);
   const setProxyUrl = useCallback((v: string) => { setProxyUrlState(v); api.setSetting('proxyUrl', v); }, []);
 
   useEffect(() => { if (settingsLoaded) api.setSetting('embedSubtitles', embedSubtitles); }, [embedSubtitles, settingsLoaded]);
@@ -647,6 +673,7 @@ export default function App() {
                     onTogglePause={handleTogglePause}
                     onPriorityChange={handlePriorityChange}
                     onOpenFolder={handleOpenFolder}
+                    onRetryWithUpdate={handleRetryWithUpdate}
                   />
                 </div>
               </motion.div>
@@ -688,9 +715,12 @@ export default function App() {
                     setCurrentVideo(video);
                     setActiveTab('analyzer');
                   }}
-                  onStartAgentDownload={(video, chosenCrf) => {
+                  onStartAgentDownload={(video, chosenCrf, resolutionHint) => {
                     setCurrentVideo(video);
-                    handleStartDownload({ video, format: video.availableFormats[0], crf: chosenCrf });
+                    const matched = resolutionHint
+                      ? video.availableFormats.find(f => f.resolution.startsWith(resolutionHint))
+                      : null;
+                    handleStartDownload({ video, format: matched || video.availableFormats[0], crf: chosenCrf });
                   }}
                 />
               </motion.div>
@@ -747,6 +777,12 @@ export default function App() {
                   setProxyUrl={setProxyUrl}
                   useAria2={useAria2}
                   setUseAria2={setUseAria2}
+                  aiProvider={aiProvider}
+                  setAiProvider={setAiProvider}
+                  groqApiKey={groqApiKey}
+                  setGroqApiKey={setGroqApiKey}
+                  anthropicApiKey={anthropicApiKey}
+                  setAnthropicApiKey={setAnthropicApiKey}
                 />
               </motion.div>
             )}

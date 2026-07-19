@@ -58,5 +58,11 @@ contextBridge.exposeInMainWorld('anydl', {
     const listener = (_e, url) => cb(url);
     ipcRenderer.on('clipboard:url-detected', listener);
     return () => ipcRenderer.removeListener('clipboard:url-detected', listener);
-  }
+  },
+
+  // Real AI agents (BYO API key — Anthropic or free Groq — set in Settings)
+  checkAiKey: () => ipcRenderer.invoke('ai:checkKey'),
+  aiParseIntent: (instruction) => ipcRenderer.invoke('ai:parseIntent', instruction),
+  aiExplainError: (logText) => ipcRenderer.invoke('ai:explainError', logText),
+  aiSuggestFilename: (rawTitle) => ipcRenderer.invoke('ai:suggestFilename', rawTitle)
 });

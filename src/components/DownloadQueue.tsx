@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DownloadTask } from '../types';
 import { formatDuration } from '../utils/qualityEngine';
 import {
   Play, Pause, CheckCircle2, Terminal, FolderOpen, Copy, Trash2,
-  Zap, Award, ArrowUp, ArrowDown, Gauge, Clock, HardDrive
+  Zap, Award, ArrowUp, ArrowDown, Gauge, Clock, HardDrive, RefreshCcw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -42,6 +42,7 @@ interface DownloadQueueProps {
   onTogglePause: (id: string) => void;
   onPriorityChange: (id: string, priority: DownloadTask['priority']) => void;
   onOpenFolder?: (task: DownloadTask) => void;
+  onRetryWithUpdate?: (task: DownloadTask) => void;
 }
 
 export const DownloadQueue: React.FC<DownloadQueueProps> = ({
@@ -49,11 +50,13 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
   onRemoveTask,
   onTogglePause,
   onPriorityChange,
-  onOpenFolder
+  onOpenFolder,
+  onRetryWithUpdate
 }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const terminalRef = useRef<HTMLDivElement>(null);
 
   const filteredTasks = filterStatus === 'all'
     ? tasks
@@ -82,6 +85,12 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
   }
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId) || tasks[0];
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [selectedTask?.logs.length, selectedTaskId]);
 
   const handleCelebrate = () => {
     confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#06b6d4', '#10b981', '#8b5cf6'] });
@@ -314,13 +323,15 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
               </div>
             </div>
 
-            <div className="flex-1 min-h-[240px] max-h-[400px] overflow-y-auto space-y-1.5 text-xs text-slate-300 pr-2">
+            <div ref={terminalRef} className="flex-1 min-h-[240px] max-h-[400px] overflow-y-auto space-y-1.5 text-xs text-slate-300 pr-2">
               {selectedTask ? (
                 selectedTask.logs.map((log, idx) => (
                   <div key={idx} className="flex items-start gap-2 leading-relaxed">
                     <span className="text-slate-600 select-none shrink-0">&gt;</span>
                     <span className={
-                      log.includes('[download]')
+                      /^ERROR:|^\[error\]/i.test(log)
+                        ? 'text-red-400 font-bold'
+                        : log.includes('[download]')
                         ? 'text-cyan-300 font-semibold'
                         : log.includes('MERGE') || log.includes('Finished')
                         ? 'text-emerald-400 font-bold'
@@ -338,6 +349,14 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({
                 <div className="text-slate-600 text-center py-16 text-sm">No active job selected</div>
               )}
             </div>
+            {selectedTask?.status === 'error' && (
+              <button
+                onClick={() => onRetryWithUpdate?.(selectedTask)}
+                className="mt-3 w-full py-2.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-amber-900/60 transition-all"
+              >
+                <RefreshCcw className="w-3.5 h-3.5" /> Update yt-dlp & Retry
+              </button>
+            )}
 
             {selectedTask && (
               <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">

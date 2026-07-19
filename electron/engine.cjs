@@ -482,11 +482,13 @@ function startDownload(id, params, settings, onEvent) {
   activeProcs.set(id, { proc, params });
 
   let lastFilePath = null;
+  let lastErrorLine = null;
   let buffer = '';
 
   const handleLine = (line) => {
     if (!line) return;
     onEvent({ id, type: 'log', message: line });
+    if (/^ERROR:|^\[error\]/i.test(line)) lastErrorLine = line;
 
     if (SUBTITLE_429_RE.test(line) && !isSubtitleCooldownActive()) {
       subtitleCooldownUntil = Date.now() + 5 * 60 * 1000;
@@ -531,7 +533,10 @@ function startDownload(id, params, settings, onEvent) {
   });
   proc.stderr.setEncoding('utf-8');
   proc.stderr.on('data', (chunk) => {
-    chunk.split(/\r?\n/).filter(Boolean).forEach((l) => onEvent({ id, type: 'log', message: l }));
+    chunk.split(/\r?\n/).filter(Boolean).forEach((l) => {
+      onEvent({ id, type: 'log', message: l });
+      if (/^ERROR:|^\[error\]/i.test(l)) lastErrorLine = l;
+    });
   });
 
   proc.on('close', (code) => {
@@ -556,7 +561,7 @@ function startDownload(id, params, settings, onEvent) {
         message: `[engine] yt-dlp exited with code ${code} (likely a subtitle/postprocessor issue), but the video file was found on disk — keeping it.`
       });
     } else {
-      onEvent({ id, type: 'error', status: 'error', message: `yt-dlp exited with code ${code}` });
+      onEvent({ id, type: 'error', status: 'error', message: lastErrorLine ? `${lastErrorLine} (exit code ${code})` : `yt-dlp exited with code ${code}` });
     }
   });
 

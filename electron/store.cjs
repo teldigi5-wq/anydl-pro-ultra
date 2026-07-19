@@ -33,7 +33,10 @@ const DEFAULTS = {
   globalLimitRateKBps: 0,
   proxyEnabled: false,
   proxyUrl: '',
-  useAria2: true
+  useAria2: true,
+  anthropicApiKey: '',
+  aiProvider: 'groq',
+  groqApiKey: ''
 };
 
 function filePath() {

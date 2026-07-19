@@ -29,6 +29,9 @@ export interface AppSettings {
   proxyEnabled: boolean;
   proxyUrl: string;
   useAria2: boolean;
+  anthropicApiKey: string;
+  aiProvider: 'groq' | 'anthropic';
+  groqApiKey: string;
 }
 
 export interface DownloadStartTask {
@@ -99,6 +102,15 @@ export interface HistoryEntry {
   completedAt: number;
 }
 
+export interface AiIntent {
+  url: string | null;
+  resolutionHint: string | null;
+  crf: number | null;
+  audioOnly: boolean;
+  subtitleLanguages: string[];
+  reasoning: string;
+}
+
 interface AnydlBridge {
   isElectron: true;
   platform: string;
@@ -123,6 +135,10 @@ interface AnydlBridge {
   getHistory(): Promise<HistoryEntry[]>;
   clearHistory(): Promise<HistoryEntry[]>;
   onClipboardUrl(cb: (url: string) => void): () => void;
+  checkAiKey(): Promise<{ ok: boolean; message: string }>;
+  aiParseIntent(instruction: string): Promise<{ ok: true; data: AiIntent } | { ok: false; error: string }>;
+  aiExplainError(logText: string): Promise<{ ok: true; data: string } | { ok: false; error: string }>;
+  aiSuggestFilename(rawTitle: string): Promise<{ ok: true; data: string } | { ok: false; error: string }>;
 }
 
 declare global {
@@ -227,5 +243,21 @@ export const api = {
   onClipboardUrl(cb: (url: string) => void) {
     if (!window.anydl) return () => {};
     return window.anydl.onClipboardUrl(cb);
+  },
+  async checkAiKey() {
+    if (!window.anydl) return { ok: false, message: 'Not running inside the desktop app.' };
+    return window.anydl.checkAiKey();
+  },
+  async aiParseIntent(instruction: string) {
+    if (!window.anydl) return { ok: false as const, error: 'Not running inside the desktop app.' };
+    return window.anydl.aiParseIntent(instruction);
+  },
+  async aiExplainError(logText: string) {
+    if (!window.anydl) return { ok: false as const, error: 'Not running inside the desktop app.' };
+    return window.anydl.aiExplainError(logText);
+  },
+  async aiSuggestFilename(rawTitle: string) {
+    if (!window.anydl) return { ok: false as const, error: 'Not running inside the desktop app.' };
+    return window.anydl.aiSuggestFilename(rawTitle);
   }
 };

@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const store = require('./store.cjs');
 const engine = require('./engine.cjs');
+const aiAgent = require('./aiAgent.cjs');
 
 let mainWindow = null;
 let statsInterval = null;
@@ -248,6 +249,45 @@ ipcMain.handle('shell:showInFolder', (_e, targetPath) => {
 ipcMain.handle('engine:info', () => engine.getEngineInfo(store.getAll()));
 ipcMain.handle('engine:updateYtDlp', () => engine.updateYtDlp(store.getAll()));
 ipcMain.handle('engine:gpuCheck', () => engine.checkGpuCapability());
+
+function getAiProviderAndKey() {
+  const s = store.getAll();
+  const provider = s.aiProvider === 'anthropic' ? 'anthropic' : 'groq';
+  const key = provider === 'anthropic' ? s.anthropicApiKey : s.groqApiKey;
+  return { provider, key };
+}
+
+ipcMain.handle('ai:checkKey', () => {
+  const { provider, key } = getAiProviderAndKey();
+  return aiAgent.checkApiKey(provider, key);
+});
+ipcMain.handle('ai:parseIntent', async (_e, instruction) => {
+  const { provider, key } = getAiProviderAndKey();
+  if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI parsing.` };
+  try {
+    return { ok: true, data: await aiAgent.parseIntent(provider, key, instruction) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('ai:explainError', async (_e, logText) => {
+  const { provider, key } = getAiProviderAndKey();
+  if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI error explanations.` };
+  try {
+    return { ok: true, data: await aiAgent.explainError(provider, key, logText) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('ai:suggestFilename', async (_e, rawTitle) => {
+  const { provider, key } = getAiProviderAndKey();
+  if (!key) return { ok: false, error: 'No AI API key set.' };
+  try {
+    return { ok: true, data: await aiAgent.suggestFilename(provider, key, rawTitle) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 
 ipcMain.handle('video:analyze', async (_e, url) => {
   try {
