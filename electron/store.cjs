@@ -37,6 +37,7 @@ const DEFAULTS = {
   anthropicApiKey: '',
   aiProvider: 'groq',
   groqApiKey: '',
+  openrouterApiKey: '',
   disableHardwareAcceleration: false
 };
 

@@ -127,8 +127,9 @@ export default function App() {
   const [globalLimitRateKBps, setGlobalLimitRateKBpsState] = useState(0);
   const [proxyEnabled, setProxyEnabledState] = useState(false);
   const [useAria2, setUseAria2State] = useState(true);
-  const [aiProvider, setAiProviderState] = useState<'groq' | 'anthropic'>('groq');
+  const [aiProvider, setAiProviderState] = useState<'groq' | 'anthropic' | 'openrouter'>('groq');
   const [groqApiKey, setGroqApiKeyState] = useState('');
+  const [openrouterApiKey, setOpenrouterApiKeyState] = useState('');
   const [anthropicApiKey, setAnthropicApiKeyState] = useState('');
   const [disableHardwareAcceleration, setDisableHardwareAccelerationState] = useState(false);
   const [proxyUrl, setProxyUrlState] = useState('');
@@ -157,6 +158,7 @@ export default function App() {
         setUseAria2State(settings.useAria2 !== false);
         setAiProviderState(settings.aiProvider === 'anthropic' ? 'anthropic' : 'groq');
         setGroqApiKeyState(settings.groqApiKey || '');
+        setOpenrouterApiKeyState(settings.openrouterApiKey || '');
         setAnthropicApiKeyState(settings.anthropicApiKey || '');
         setDisableHardwareAccelerationState(!!settings.disableHardwareAcceleration);
         setProxyUrlState(settings.proxyUrl || '');
@@ -580,8 +582,9 @@ export default function App() {
   const setGlobalLimitRateKBps = useCallback((n: number) => { setGlobalLimitRateKBpsState(n); api.setSetting('globalLimitRateKBps', n); }, []);
   const setProxyEnabled = useCallback((v: boolean) => { setProxyEnabledState(v); api.setSetting('proxyEnabled', v); }, []);
   const setUseAria2 = useCallback((v: boolean) => { setUseAria2State(v); api.setSetting('useAria2', v); }, []);
-  const setAiProvider = useCallback((v: 'groq' | 'anthropic') => { setAiProviderState(v); api.setSetting('aiProvider', v); }, []);
+  const setAiProvider = useCallback((v: 'groq' | 'anthropic' | 'openrouter') => { setAiProviderState(v); api.setSetting('aiProvider', v); }, []);
   const setGroqApiKey = useCallback((v: string) => { setGroqApiKeyState(v); api.setSetting('groqApiKey', v); }, []);
+  const setOpenrouterApiKey = useCallback((v: string) => { setOpenrouterApiKeyState(v); api.setSetting('openrouterApiKey', v); }, []);
   const setAnthropicApiKey = useCallback((v: string) => { setAnthropicApiKeyState(v); api.setSetting('anthropicApiKey', v); }, []);
   const setDisableHardwareAcceleration = useCallback((v: boolean) => { setDisableHardwareAccelerationState(v); api.setSetting('disableHardwareAcceleration', v); }, []);
   const setProxyUrl = useCallback((v: string) => { setProxyUrlState(v); api.setSetting('proxyUrl', v); }, []);
@@ -784,6 +787,8 @@ export default function App() {
                   setAiProvider={setAiProvider}
                   groqApiKey={groqApiKey}
                   setGroqApiKey={setGroqApiKey}
+                  openrouterApiKey={openrouterApiKey}
+                  setOpenrouterApiKey={setOpenrouterApiKey}
                   anthropicApiKey={anthropicApiKey}
                   setAnthropicApiKey={setAnthropicApiKey}
                   disableHardwareAcceleration={disableHardwareAcceleration}

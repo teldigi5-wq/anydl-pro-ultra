@@ -28,10 +28,12 @@ interface SettingsPanelProps {
   setProxyUrl: (v: string) => void;
   useAria2: boolean;
   setUseAria2: (v: boolean) => void;
-  aiProvider: 'groq' | 'anthropic';
-  setAiProvider: (v: 'groq' | 'anthropic') => void;
+  aiProvider: 'groq' | 'anthropic' | 'openrouter';
+  setAiProvider: (v: 'groq' | 'anthropic' | 'openrouter') => void;
   groqApiKey: string;
   setGroqApiKey: (v: string) => void;
+  openrouterApiKey: string;
+  setOpenrouterApiKey: (v: string) => void;
   anthropicApiKey: string;
   setAnthropicApiKey: (v: string) => void;
   disableHardwareAcceleration: boolean;
@@ -64,6 +66,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setAiProvider,
   groqApiKey,
   setGroqApiKey,
+  openrouterApiKey,
+  setOpenrouterApiKey,
   anthropicApiKey,
   setAnthropicApiKey,
   disableHardwareAcceleration,
@@ -234,7 +238,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   aiProvider === 'groq' ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300' : 'bg-slate-800/50 border-slate-700 text-slate-400'
                 }`}
               >
-                Groq (free tier)
+                Groq (free)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiProvider('openrouter')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  aiProvider === 'openrouter' ? 'bg-violet-950/70 border-violet-500/50 text-violet-300' : 'bg-slate-800/50 border-slate-700 text-slate-400'
+                }`}
+              >
+                OpenRouter (free)
               </button>
               <button
                 type="button"
@@ -247,7 +260,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </button>
             </div>
 
-            {aiProvider === 'groq' ? (
+            {aiProvider === 'groq' && (
               <>
                 <input
                   type="password"
@@ -261,7 +274,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   Get a free key: sign up at <span className="font-mono">console.groq.com</span> — no credit card required.
                 </p>
               </>
-            ) : (
+            )}
+            {aiProvider === 'openrouter' && (
+              <>
+                <input
+                  type="password"
+                  value={openrouterApiKey}
+                  onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                  placeholder="sk-or-v1-... (free key from openrouter.ai/keys)"
+                  className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none"
+                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
+                />
+                <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                  Get a free key: sign up at <span className="font-mono">openrouter.ai/keys</span> — uses a free-tier model, no cost.
+                  If you've shared a key anywhere public before, generate a fresh one — treat any previously-exposed key as compromised.
+                </p>
+              </>
+            )}
+            {aiProvider === 'anthropic' && (
               <>
                 <input
                   type="password"

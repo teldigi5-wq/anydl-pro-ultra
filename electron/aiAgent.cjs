@@ -36,6 +36,27 @@ const PROVIDERS = {
     }),
     extractText: (parsed) => (parsed.choices?.[0]?.message?.content || '').trim(),
     extractError: (parsed, statusCode) => parsed?.error?.message || `Groq API error (HTTP ${statusCode})`
+  },
+  openrouter: {
+    // OpenRouter's free-tier models (":free" suffix) — no cost, but does
+    // require a real account/key from https://openrouter.ai/keys. Also
+    // OpenAI-compatible, so it reuses the same request/response shape as Groq.
+    host: 'openrouter.ai',
+    path: '/api/v1/chat/completions',
+    model: 'meta-llama/llama-3.3-70b-instruct:free',
+    buildHeaders: (apiKey, bodyLen) => ({
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://github.com/anydl-pro-ultra',
+      'X-Title': 'AnyDL Pro Ultra',
+      'Content-Length': bodyLen
+    }),
+    buildBody: (model, system, userMessage, maxTokens) => JSON.stringify({
+      model, max_tokens: maxTokens,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: userMessage }]
+    }),
+    extractText: (parsed) => (parsed.choices?.[0]?.message?.content || '').trim(),
+    extractError: (parsed, statusCode) => parsed?.error?.message || `OpenRouter API error (HTTP ${statusCode})`
   }
 };
 
@@ -75,7 +96,8 @@ async function checkApiKey(providerId, apiKey) {
   if (!apiKey) return { ok: false, message: 'No API key set.' };
   try {
     await callLLM(providerId, apiKey, 'Reply with exactly: OK', 'ping', 10);
-    return { ok: true, message: `Connected to ${providerId === 'groq' ? 'Groq (free tier)' : 'Anthropic'} API.` };
+    const label = providerId === 'groq' ? 'Groq (free tier)' : providerId === 'openrouter' ? 'OpenRouter (free tier)' : 'Anthropic';
+    return { ok: true, message: `Connected to ${label} API.` };
   } catch (e) {
     return { ok: false, message: e.message };
   }

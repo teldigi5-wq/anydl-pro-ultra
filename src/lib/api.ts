@@ -30,8 +30,9 @@ export interface AppSettings {
   proxyUrl: string;
   useAria2: boolean;
   anthropicApiKey: string;
-  aiProvider: 'groq' | 'anthropic';
+  aiProvider: 'groq' | 'anthropic' | 'openrouter';
   groqApiKey: string;
+  openrouterApiKey: string;
   disableHardwareAcceleration: boolean;
 }
 

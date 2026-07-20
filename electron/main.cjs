@@ -280,8 +280,8 @@ ipcMain.handle('engine:gpuCheck', () => engine.checkGpuCapability());
 
 function getAiProviderAndKey() {
   const s = store.getAll();
-  const provider = s.aiProvider === 'anthropic' ? 'anthropic' : 'groq';
-  const key = provider === 'anthropic' ? s.anthropicApiKey : s.groqApiKey;
+  const provider = ['anthropic', 'groq', 'openrouter'].includes(s.aiProvider) ? s.aiProvider : 'groq';
+  const key = provider === 'anthropic' ? s.anthropicApiKey : provider === 'openrouter' ? s.openrouterApiKey : s.groqApiKey;
   return { provider, key };
 }
 
@@ -291,7 +291,7 @@ ipcMain.handle('ai:checkKey', () => {
 });
 ipcMain.handle('ai:parseIntent', async (_e, instruction) => {
   const { provider, key } = getAiProviderAndKey();
-  if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI parsing.` };
+  if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : provider === 'openrouter' ? 'OpenRouter (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI parsing.` };
   try {
     return { ok: true, data: await aiAgent.parseIntent(provider, key, instruction) };
   } catch (e) {
@@ -300,7 +300,7 @@ ipcMain.handle('ai:parseIntent', async (_e, instruction) => {
 });
 ipcMain.handle('ai:explainError', async (_e, logText) => {
   const { provider, key } = getAiProviderAndKey();
-  if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI error explanations.` };
+  if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : provider === 'openrouter' ? 'OpenRouter (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI error explanations.` };
   try {
     return { ok: true, data: await aiAgent.explainError(provider, key, logText) };
   } catch (e) {
