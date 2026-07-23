@@ -178,6 +178,55 @@ function runYtDlpJSON(ytdlpPath, url, proxyUrl) {
   });
 }
 
+function runYtDlpFlatPlaylist(ytdlpPath, url, proxyUrl) {
+  return new Promise((resolve, reject) => {
+    const args = ['-J', '--flat-playlist', '--no-warnings', '--playlist-items', '1-500'];
+    if (proxyUrl) args.push('--proxy', proxyUrl);
+    args.push(url);
+    execFile(ytdlpPath, args, { maxBuffer: 128 * 1024 * 1024, timeout: 60000 }, (err, stdout, stderr) => {
+      if (err) {
+        const msg = (stderr || err.message || 'yt-dlp failed').split('\n').filter(Boolean).pop() || 'yt-dlp failed';
+        return reject(new Error(msg));
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (e) {
+        reject(new Error('Could not parse playlist metadata'));
+      }
+    });
+  });
+}
+
+// Real playlist/channel listing: uses --flat-playlist so this is fast (no
+// full per-video extraction, just IDs/titles/durations), letting the UI
+// show every real video in a playlist or channel before committing to
+// downloading any of them.
+async function analyzePlaylist(url, settings) {
+  const { ytdlp } = getPaths(settings);
+  const proxyUrl = settings?.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : null;
+  const info = await runYtDlpFlatPlaylist(ytdlp.path, url, proxyUrl);
+
+  const entries = Array.isArray(info.entries) ? info.entries : [];
+  if (entries.length === 0) {
+    throw new Error('No playlist/channel entries found — this may be a single video, not a playlist.');
+  }
+
+  return {
+    title: info.title || 'Playlist',
+    uploader: info.uploader || info.channel || 'Unknown',
+    platform: guessPlatform(info.extractor_key || info.extractor),
+    entryCount: entries.length,
+    entries: entries.map((e, i) => ({
+      index: i + 1,
+      id: e.id,
+      title: e.title || `Video ${i + 1}`,
+      url: e.url || e.webpage_url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : null),
+      durationSeconds: typeof e.duration === 'number' ? Math.round(e.duration) : null,
+      uploader: e.uploader || info.uploader || null
+    })).filter(e => !!e.url)
+  };
+}
+
 async function analyzeUrl(url, settings) {
   const { ytdlp } = getPaths(settings);
   const proxyUrl = settings?.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : null;
@@ -348,6 +397,9 @@ function buildDownloadArgs(params) {
   } = params;
 
   const args = ['--newline', '--no-warnings', '--no-playlist', '--ignore-config', '--ignore-errors'];
+  if (params.useDownloadArchive !== false) {
+    args.push('--download-archive', path.join(outputDir, '.anydl-archive.txt'));
+  }
   args.push('--retries', String(retries || 10), '--fragment-retries', String(retries || 10));
   // Real fix for "fast connection, slow download": most video CDNs (YouTube's
   // googlevideo.com included) throttle a single HTTP connection well below
@@ -610,6 +662,51 @@ function isActive(id) {
 // real ffmpeg reassembly. This is genuinely slow, especially without a GPU,
 // so we gate it on a real (heuristic) GPU capability check first.
 // ---------------------------------------------------------------------------
+// Fetches only the real caption/subtitle text for a video (no video download
+// at all) — used by the AI video summary feature so it can summarize from
+// actual captions rather than guessing from the title alone.
+async function fetchCaptionText(url, settings) {
+  const { ytdlp } = getPaths(settings);
+  const proxyUrl = settings?.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : null;
+  const workDir = path.join(os.tmpdir(), 'anydl-captions-' + Date.now());
+  fs.mkdirSync(workDir, { recursive: true });
+  const cleanup = () => { try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* ignore */ } };
+
+  try {
+    const args = ['--skip-download', '--write-auto-subs', '--write-subs', '--sub-langs', 'en.*',
+      '--convert-subs', 'srt', '--no-warnings', '--no-playlist', '-o', path.join(workDir, 'caption')];
+    if (proxyUrl) args.push('--proxy', proxyUrl);
+    args.push(url);
+
+    await new Promise((resolve, reject) => {
+      execFile(ytdlp.path, args, { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }, (err) => {
+        // Non-fatal even on error — we check for a real output file next.
+        resolve();
+      });
+    });
+
+    const files = fs.readdirSync(workDir).filter(f => f.endsWith('.srt'));
+    if (files.length === 0) {
+      cleanup();
+      return null; // no real captions available — caller should say so honestly
+    }
+    const raw = fs.readFileSync(path.join(workDir, files[0]), 'utf-8');
+    cleanup();
+    // Strip SRT timing/index lines, keep only real spoken text for summarization.
+    const text = raw
+      .split(/\r?\n\r?\n/)
+      .map(block => block.split(/\r?\n/).slice(2).join(' '))
+      .join(' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text || null;
+  } catch (e) {
+    cleanup();
+    return null;
+  }
+}
+
 async function checkGpuCapability() {
   try {
     const si = require('systeminformation');
@@ -738,6 +835,8 @@ module.exports = {
   runUpscale,
   updateYtDlp,
   analyzeUrl,
+  analyzePlaylist,
+  fetchCaptionText,
   startDownload,
   cancelDownload,
   pauseDownload,

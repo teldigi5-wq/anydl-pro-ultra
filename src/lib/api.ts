@@ -113,18 +113,36 @@ export interface AiIntent {
   reasoning: string;
 }
 
+export interface PlaylistEntry {
+  index: number;
+  id: string;
+  title: string;
+  url: string;
+  durationSeconds: number | null;
+  uploader: string | null;
+}
+export interface PlaylistAnalysis {
+  title: string;
+  uploader: string;
+  platform: string;
+  entryCount: number;
+  entries: PlaylistEntry[];
+}
+
 interface AnydlBridge {
   isElectron: true;
   platform: string;
   getSettings(): Promise<AppSettings>;
   setSetting(key: string, value: any): Promise<AppSettings>;
   chooseFolder(): Promise<string | null>;
+  chooseSubtitleFile(): Promise<string | null>;
   openPath(p: string): Promise<boolean>;
   showInFolder(p: string): Promise<boolean>;
   getEngineInfo(): Promise<EngineInfo>;
   updateYtDlp(): Promise<{ ok: boolean; message: string }>;
   checkGpu(): Promise<GpuCheckResult>;
   analyzeUrl(url: string): Promise<{ ok: true; data: VideoAnalysisResult } | { ok: false; error: string }>;
+  analyzePlaylist(url: string): Promise<{ ok: true; data: PlaylistAnalysis } | { ok: false; error: string }>;
   startDownload(task: DownloadStartTask): Promise<{ ok: boolean; id: string }>;
   cancelDownload(id: string): Promise<{ ok: boolean }>;
   pauseDownload(id: string): Promise<{ ok: boolean }>;
@@ -134,6 +152,7 @@ interface AnydlBridge {
   getBrowserPartition(): Promise<string>;
   getBrowserPreloadPath(): Promise<string>;
   onMediaDetected(cb: (evt: DetectedMediaEvent) => void): () => void;
+  logRendererError(detail: string): Promise<boolean>;
   getHistory(): Promise<HistoryEntry[]>;
   clearHistory(): Promise<HistoryEntry[]>;
   onClipboardUrl(cb: (url: string) => void): () => void;
@@ -141,6 +160,8 @@ interface AnydlBridge {
   aiParseIntent(instruction: string): Promise<{ ok: true; data: AiIntent } | { ok: false; error: string }>;
   aiExplainError(logText: string): Promise<{ ok: true; data: string } | { ok: false; error: string }>;
   aiSuggestFilename(rawTitle: string): Promise<{ ok: true; data: string } | { ok: false; error: string }>;
+  aiTranslateSubtitles(filePath: string, targetLanguageName: string): Promise<{ ok: true; data: { outputPath: string; truncated: boolean } } | { ok: false; error: string }>;
+  aiSummarizeVideo(url: string, title: string): Promise<{ ok: true; data: { summary: string; truncated: boolean } } | { ok: false; error: string }>;
 }
 
 declare global {
@@ -172,6 +193,10 @@ export const api = {
     if (!window.anydl) return null;
     return window.anydl.chooseFolder();
   },
+  async chooseSubtitleFile() {
+    if (!window.anydl) return null;
+    return window.anydl.chooseSubtitleFile();
+  },
   async openPath(p: string) {
     if (!window.anydl) return false;
     return window.anydl.openPath(p);
@@ -197,6 +222,12 @@ export const api = {
       return { ok: false as const, error: 'This preview is running in a plain browser tab. Install/run the desktop app for real analysis.' };
     }
     return window.anydl.analyzeUrl(url);
+  },
+  async analyzePlaylist(url: string) {
+    if (!window.anydl) {
+      return { ok: false as const, error: 'Not running inside the desktop app.' };
+    }
+    return window.anydl.analyzePlaylist(url);
   },
   async startDownload(task: DownloadStartTask) {
     if (!window.anydl) return { ok: false, id: task.id };
@@ -261,5 +292,17 @@ export const api = {
   async aiSuggestFilename(rawTitle: string) {
     if (!window.anydl) return { ok: false as const, error: 'Not running inside the desktop app.' };
     return window.anydl.aiSuggestFilename(rawTitle);
+  },
+  async aiTranslateSubtitles(filePath: string, targetLanguageName: string) {
+    if (!window.anydl) return { ok: false as const, error: 'Not running inside the desktop app.' };
+    return window.anydl.aiTranslateSubtitles(filePath, targetLanguageName);
+  },
+  async aiSummarizeVideo(url: string, title: string) {
+    if (!window.anydl) return { ok: false as const, error: 'Not running inside the desktop app.' };
+    return window.anydl.aiSummarizeVideo(url, title);
+  },
+  async logRendererError(detail: string) {
+    if (!window.anydl) return false;
+    return window.anydl.logRendererError(detail);
   }
 };

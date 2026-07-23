@@ -223,6 +223,21 @@ function startSystemStats() {
   }, 2000);
 }
 
+// Real fix for the gap in the earlier renderer-crash recovery: Electron
+// runs the GPU compositor in its own separate process. If THAT crashes
+// (common real trigger: a burst of new GPU-composited layers all at once,
+// like a download starting mid-animation) while the renderer stays alive,
+// 'render-process-gone' never fires and the window is left rendering
+// black forever with no self-heal. This catches that specific case.
+app.on('child-process-gone', (_event, details) => {
+  if (details.type === 'GPU') {
+    console.error('[recovery] GPU process gone:', details.reason, '— reloading window.');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.reload();
+    }
+  }
+});
+
 app.whenReady().then(async () => {
   await ensureDownloadDir();
   applyAutoStart(store.getAll().autoStart);
@@ -260,6 +275,15 @@ ipcMain.handle('dialog:chooseFolder', async () => {
   const res = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory', 'createDirectory'] });
   if (res.canceled || !res.filePaths.length) return null;
   store.set('downloadPath', res.filePaths[0]);
+  return res.filePaths[0];
+});
+
+ipcMain.handle('dialog:chooseSubtitleFile', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [{ name: 'Subtitle files', extensions: ['srt'] }]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
   return res.filePaths[0];
 });
 
@@ -317,12 +341,51 @@ ipcMain.handle('ai:suggestFilename', async (_e, rawTitle) => {
   }
 });
 
+ipcMain.handle('ai:translateSubtitles', async (_e, filePath, targetLanguageName) => {
+  const { provider, key } = getAiProviderAndKey();
+  if (!key) return { ok: false, error: 'No AI API key set. Add one in Settings.' };
+  try {
+    if (!fs.existsSync(filePath)) return { ok: false, error: 'Subtitle file not found on disk.' };
+    const srtContent = fs.readFileSync(filePath, 'utf-8');
+    const result = await aiAgent.translateSubtitles(provider, key, srtContent, targetLanguageName);
+    const outPath = filePath.replace(/\.srt$/i, `.ai-${targetLanguageName.toLowerCase().replace(/\s+/g, '-')}.srt`);
+    fs.writeFileSync(outPath, result.translated, 'utf-8');
+    return { ok: true, data: { outputPath: outPath, truncated: result.truncated } };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('ai:summarizeVideo', async (_e, url, title) => {
+  const { provider, key } = getAiProviderAndKey();
+  if (!key) return { ok: false, error: 'No AI API key set. Add one in Settings.' };
+  try {
+    const captionText = await engine.fetchCaptionText(url, store.getAll());
+    if (!captionText) {
+      return { ok: false, error: 'No captions/subtitles found for this video — a real summary needs real captions to work from.' };
+    }
+    const result = await aiAgent.summarizeVideo(provider, key, title, captionText);
+    return { ok: true, data: result };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('video:analyze', async (_e, url) => {
   try {
     const result = await engine.analyzeUrl(url, store.getAll());
     return { ok: true, data: result };
   } catch (e) {
     return { ok: false, error: e.message || 'Analysis failed' };
+  }
+});
+
+ipcMain.handle('playlist:analyze', async (_e, url) => {
+  try {
+    const result = await engine.analyzePlaylist(url, store.getAll());
+    return { ok: true, data: result };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Playlist analysis failed' };
   }
 });
 
@@ -370,5 +433,15 @@ ipcMain.handle('download:resume', async (_e, task) => {
 });
 
 ipcMain.handle('app:platform', () => process.platform);
+ipcMain.handle('app:logRendererError', (_e, detail) => {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'renderer-crash.log');
+    const entry = `\n[${new Date().toISOString()}]\n${detail}\n`;
+    fs.appendFileSync(logPath, entry, 'utf-8');
+  } catch (e) {
+    console.error('[crash-log] failed to write:', e);
+  }
+  return true;
+});
 ipcMain.handle('browser:partition', () => BROWSER_PARTITION);
 ipcMain.handle('browser:preload-path', () => `file://${path.join(__dirname, 'webview-preload.cjs')}`);

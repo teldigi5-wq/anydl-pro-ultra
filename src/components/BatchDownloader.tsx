@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ListPlus, Trash2, Loader2, Link2, CheckCircle2, AlertCircle, Download, Layers } from 'lucide-react';
+import { ListPlus, Trash2, Loader2, Link2, CheckCircle2, AlertCircle, Download, Layers, ListVideo } from 'lucide-react';
 import { BatchDownloadItem } from '../types';
+import { api } from '../lib/api';
 
 interface BatchDownloaderProps {
   items: BatchDownloadItem[];
@@ -20,6 +21,41 @@ export const BatchDownloader: React.FC<BatchDownloaderProps> = ({
 }) => {
   const [batchInput, setBatchInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+
+  const [playlistUrl, setPlaylistUrl] = useState('');
+  const [isImportingPlaylist, setIsImportingPlaylist] = useState(false);
+  const [playlistError, setPlaylistError] = useState<string | null>(null);
+  const [playlistInfo, setPlaylistInfo] = useState<{ title: string; entryCount: number } | null>(null);
+  const [rangeFrom, setRangeFrom] = useState(1);
+  const [rangeTo, setRangeTo] = useState(0);
+
+  const handleImportPlaylist = async () => {
+    const url = playlistUrl.trim();
+    if (!url) return;
+    setIsImportingPlaylist(true);
+    setPlaylistError(null);
+    setPlaylistInfo(null);
+    const res = await api.analyzePlaylist(url);
+    setIsImportingPlaylist(false);
+    if (!res.ok) {
+      setPlaylistError(res.error);
+      return;
+    }
+    setPlaylistInfo({ title: res.data.title, entryCount: res.data.entryCount });
+    setRangeFrom(1);
+    setRangeTo(res.data.entryCount);
+    (window as any).__anydlLastPlaylist = res.data.entries; // stash for the import-range action below
+  };
+
+  const handleImportRange = () => {
+    const entries: Array<{ url: string }> = (window as any).__anydlLastPlaylist || [];
+    const from = Math.max(1, rangeFrom);
+    const to = Math.min(entries.length, rangeTo || entries.length);
+    const slice = entries.slice(from - 1, to).map(e => e.url);
+    onAddItems(slice);
+    setPlaylistUrl('');
+    setPlaylistInfo(null);
+  };
 
   const handleAdd = () => {
     if (!batchInput.trim()) return;
@@ -65,6 +101,59 @@ export const BatchDownloader: React.FC<BatchDownloaderProps> = ({
             {items.length} Total
           </span>
         </div>
+      </div>
+
+      {/* Real Playlist/Channel Import — expands into individual real video URLs */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-800/20 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <ListVideo className="w-4 h-4 text-purple-400" />
+          <span className="text-xs font-bold text-white">Import a Playlist or Channel</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={playlistUrl}
+            onChange={(e) => setPlaylistUrl(e.target.value)}
+            placeholder="Paste a playlist or channel URL..."
+            className="flex-1 px-3 py-2 rounded-xl bg-[#080b11] border border-slate-700 text-sm text-white placeholder-slate-500 font-mono focus:outline-none focus:border-purple-500"
+          />
+          <button
+            onClick={handleImportPlaylist}
+            disabled={isImportingPlaylist || !playlistUrl.trim()}
+            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all disabled:opacity-40 shrink-0"
+          >
+            {isImportingPlaylist ? 'Scanning...' : 'Scan'}
+          </button>
+        </div>
+        {playlistError && (
+          <p className="text-xs text-red-400 font-mono">{playlistError}</p>
+        )}
+        {playlistInfo && (
+          <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-2">
+            <p className="text-xs text-purple-200">
+              Found <strong>{playlistInfo.entryCount}</strong> real videos in "{playlistInfo.title}"
+            </p>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Range:</span>
+              <input type="number" min={1} max={playlistInfo.entryCount} value={rangeFrom}
+                onChange={(e) => setRangeFrom(Number(e.target.value))}
+                className="w-16 px-2 py-1 rounded-lg bg-[#080b11] border border-slate-700 text-white font-mono" />
+              <span className="text-slate-500">to</span>
+              <input type="number" min={1} max={playlistInfo.entryCount} value={rangeTo}
+                onChange={(e) => setRangeTo(Number(e.target.value))}
+                className="w-16 px-2 py-1 rounded-lg bg-[#080b11] border border-slate-700 text-white font-mono" />
+              <button
+                onClick={handleImportRange}
+                className="ml-auto px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              >
+                Add to Batch
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="text-[10px] text-slate-500">
+          Real scan via yt-dlp — fetches titles/durations for every real video without downloading anything yet.
+        </p>
       </div>
 
       {/* Drag & Drop Input */}

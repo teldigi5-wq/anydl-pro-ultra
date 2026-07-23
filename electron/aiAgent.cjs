@@ -38,12 +38,14 @@ const PROVIDERS = {
     extractError: (parsed, statusCode) => parsed?.error?.message || `Groq API error (HTTP ${statusCode})`
   },
   openrouter: {
-    // OpenRouter's free-tier models (":free" suffix) — no cost, but does
-    // require a real account/key from https://openrouter.ai/keys. Also
-    // OpenAI-compatible, so it reuses the same request/response shape as Groq.
+    // OpenRouter's free-tier models rotate over time (providers add/retire
+    // them without notice — this is what caused the "model unavailable"
+    // error). Rather than hardcode one slug that can go stale again, use
+    // OpenRouter's own free auto-router, which always resolves to whichever
+    // free model is currently actually available.
     host: 'openrouter.ai',
     path: '/api/v1/chat/completions',
-    model: 'meta-llama/llama-3.3-70b-instruct:free',
+    model: 'openrouter/free',
     buildHeaders: (apiKey, bodyLen) => ({
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
@@ -144,4 +146,40 @@ async function suggestFilename(providerId, apiKey, rawTitle) {
   return result.replace(/["*/\\?<>|:]/g, '').trim();
 }
 
-module.exports = { checkApiKey, parseIntent, explainError, suggestFilename };
+const TRANSLATE_SYSTEM = `You translate SRT subtitle files. You will receive real SRT content
+(sequence numbers, timestamps, and text). Translate ONLY the spoken text lines into the target
+language the user specifies — never translate or alter the sequence numbers or timestamp lines
+(format 00:00:00,000 --> 00:00:00,000). Preserve the exact SRT structure and line breaks. Reply
+with ONLY the translated SRT content, no commentary, no markdown fences.`;
+
+async function translateSubtitles(providerId, apiKey, srtContent, targetLanguageName) {
+  // Real safety cap: very long subtitle files could exceed a reasonable
+  // single request. Truncate with an honest note rather than silently
+  // dropping content or failing outright.
+  const MAX_CHARS = 14000;
+  let content = srtContent;
+  let truncated = false;
+  if (content.length > MAX_CHARS) {
+    content = content.slice(0, MAX_CHARS);
+    truncated = true;
+  }
+  const userMsg = `Target language: ${targetLanguageName}\n\nSRT content:\n${content}`;
+  const result = await callLLM(providerId, apiKey, TRANSLATE_SYSTEM, userMsg, 4000);
+  return { translated: result.trim(), truncated };
+}
+
+const SUMMARY_SYSTEM = `You summarize a video based on its real caption/subtitle text. Write a
+concise 3-5 sentence plain-English summary of what the video actually covers, based only on the
+provided captions. Do not invent details not present in the captions. No markdown headers, no
+bullet lists, just plain prose.`;
+
+async function summarizeVideo(providerId, apiKey, title, captionText) {
+  const MAX_CHARS = 12000;
+  const truncated = captionText.length > MAX_CHARS;
+  const content = truncated ? captionText.slice(0, MAX_CHARS) : captionText;
+  const userMsg = `Video title: ${title}\n\nCaptions:\n${content}`;
+  const result = await callLLM(providerId, apiKey, SUMMARY_SYSTEM, userMsg, 300);
+  return { summary: result.trim(), truncated };
+}
+
+module.exports = { checkApiKey, parseIntent, explainError, suggestFilename, translateSubtitles, summarizeVideo };

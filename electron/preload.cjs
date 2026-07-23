@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('anydl', {
 
   // Filesystem / shell
   chooseFolder: () => ipcRenderer.invoke('dialog:chooseFolder'),
+  chooseSubtitleFile: () => ipcRenderer.invoke('dialog:chooseSubtitleFile'),
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
   showInFolder: (p) => ipcRenderer.invoke('shell:showInFolder', p),
 
@@ -21,6 +22,7 @@ contextBridge.exposeInMainWorld('anydl', {
 
   // Analysis
   analyzeUrl: (url) => ipcRenderer.invoke('video:analyze', url),
+  analyzePlaylist: (url) => ipcRenderer.invoke('playlist:analyze', url),
 
   // Downloads
   startDownload: (task) => ipcRenderer.invoke('download:start', task),
@@ -64,5 +66,8 @@ contextBridge.exposeInMainWorld('anydl', {
   checkAiKey: () => ipcRenderer.invoke('ai:checkKey'),
   aiParseIntent: (instruction) => ipcRenderer.invoke('ai:parseIntent', instruction),
   aiExplainError: (logText) => ipcRenderer.invoke('ai:explainError', logText),
-  aiSuggestFilename: (rawTitle) => ipcRenderer.invoke('ai:suggestFilename', rawTitle)
+  aiSuggestFilename: (rawTitle) => ipcRenderer.invoke('ai:suggestFilename', rawTitle),
+  aiTranslateSubtitles: (filePath, targetLanguageName) => ipcRenderer.invoke('ai:translateSubtitles', filePath, targetLanguageName),
+  aiSummarizeVideo: (url, title) => ipcRenderer.invoke('ai:summarizeVideo', url, title),
+  logRendererError: (detail) => ipcRenderer.invoke('app:logRendererError', detail)
 });
