@@ -1,94 +1,175 @@
-# AnyDL Pro Ultra — real Windows desktop video downloader
+<div align="center">
 
-A native Windows desktop app (Electron) with a real `yt-dlp` + `ffmpeg` backend.
-Same UI/theme system as the original design, but every download is real: real
-metadata from `yt-dlp -J`, a real child process doing the download, real
-progress parsed from its output, and real files landing on your PC.
+# ⚡ AnyDL Pro Ultra
 
-## What's real
+### Real Windows desktop media downloader powered by `yt-dlp` + `FFmpeg`
 
-- **Analyze** — runs `yt-dlp -J` on the URL you paste. Title, thumbnail,
-  duration, uploader, subtitles, and the format list all come straight from
-  the source.
-- **Download** — spawns a real `yt-dlp` process with `--newline` and parses
-  its stdout for live percent / speed / ETA. Pause = kill the process
-  (yt-dlp's `.part` files + `--continue`, on by default, make resume trivial:
-  it's just re-running the same command). Cancel = kill + remove.
-- **System stats** — CPU/RAM/network/disk/temperature come from the
-  [`systeminformation`](https://systeminformation.io) package, polled every
-  2s in the Electron main process.
-- **Settings** — persisted to a real JSON file in the OS user-data folder.
-  Download folder picker uses the native Windows folder dialog. "Launch on
-  startup" uses Electron's real `app.setLoginItemSettings`.
-- **Smart tools** — audio normalize / denoise / chapter embed / trim /
-  split-by-chapters / multi-audio-tracks all map to real `yt-dlp`/`ffmpeg`
-  flags. Two are intentionally **not** implemented and say so in the UI:
-  watermark auto-removal (no reliable per-video coordinates without a
-  detection model) and AI upscaling (needs a bundled ML model). I didn't want
-  to fake those.
-- **Universal Sniffer** (Browser tab) — same real `yt-dlp -J` call, reframed
-  as a format sniffer. It is **not** a DOM/network packet sniffer, and it
-  cannot extract DRM-protected streams (Netflix, Disney+, Prime Video, etc.)
-  — those are protected by real encryption that no downloader can
-  legitimately bypass. The old version of this tab faked exactly that, so
-  this is a deliberate simplification, not an oversight.
-- **yt-dlp + ffmpeg are bundled** — `scripts/fetch-bin.cjs` pulls the real,
-  official Windows binaries from their GitHub releases
-  (`yt-dlp/yt-dlp` and `BtbN/FFmpeg-Builds`) into `resources/bin/` before
-  packaging, so the installed app needs zero manual setup. You can also point
-  it at a system install instead (toggle in the "Windows Bridge" tab).
+![Electron](https://img.shields.io/badge/Electron-33-47848F?style=for-the-badge&logo=electron&logoColor=white)
+![React](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=for-the-badge&logo=windows11&logoColor=white)
+![Version](https://img.shields.io/badge/version-6.0.0-7C3AED?style=for-the-badge)
 
-## Project layout
+**A polished Electron desktop application with real metadata analysis, downloads, progress tracking, media processing and Windows packaging.**
 
+</div>
+
+---
+
+## ✨ Why this project exists
+
+AnyDL Pro Ultra began as a highly polished UI concept. This version connects that interface to a **real backend** instead of simulated data.
+
+The application runs actual `yt-dlp` and `FFmpeg` processes, reads real metadata, parses live download progress and writes real files to the user's computer.
+
+> The goal is simple: **never fake a feature just to make the UI look complete.**
+
+---
+
+## 🚀 Highlights
+
+- **Real URL analysis** using `yt-dlp -J`
+- **Live progress, speed and ETA** parsed from the download process
+- **Pause / resume support** through `yt-dlp` partial files and continuation
+- **Native Windows folder picker**
+- **Persistent application settings** stored in the OS user-data directory
+- **System telemetry** using `systeminformation`
+- **Media processing tools** backed by real `FFmpeg` / `yt-dlp` flags
+- **Bundled Windows binaries** for zero manual `yt-dlp` / `FFmpeg` setup after installation
+- **Windows installer generation** using `electron-builder` + NSIS
+- **GitHub Actions Windows build workflow**
+
+---
+
+## 🧠 Architecture
+
+```mermaid
+flowchart LR
+    UI[React + Vite UI] --> API[Typed renderer API]
+    API --> Bridge[Electron preload / contextBridge]
+    Bridge --> Main[Electron main process]
+    Main --> Engine[Download & media engine]
+    Engine --> YTDLP[yt-dlp]
+    Engine --> FFMPEG[FFmpeg]
+    Main --> Store[Settings store]
+    Main --> System[System information]
 ```
-electron/main.cjs      Electron app lifecycle + all IPC handlers
-electron/engine.cjs     The actual yt-dlp/ffmpeg process management
-electron/preload.cjs    Safe contextBridge API exposed to the renderer
-electron/store.cjs      Settings persistence (JSON file on disk)
-scripts/fetch-bin.cjs   Downloads real yt-dlp.exe/ffmpeg.exe for bundling
-src/lib/api.ts          Typed wrapper the React UI calls into
-src/                    The original UI, rewired to call the real engine
+
+### Core layout
+
+```text
+electron/main.cjs       Electron lifecycle + IPC handlers
+electron/engine.cjs     yt-dlp / FFmpeg process management
+electron/preload.cjs    Safe contextBridge API
+electron/store.cjs      Persistent settings storage
+scripts/fetch-bin.cjs   Fetches official Windows binaries
+src/lib/api.ts          Typed renderer-side API wrapper
+src/                    React application UI
 ```
 
-## Running it yourself
+---
 
-You'll need [Node.js 20+](https://nodejs.org).
+## 🔍 What's real
+
+### Analyze
+Runs `yt-dlp -J` against the supplied URL. Title, thumbnail, duration, uploader, subtitles and available formats come from the real source metadata.
+
+### Download
+Spawns a real `yt-dlp` child process with newline progress output and parses percentage, speed and ETA while downloading.
+
+### Resume
+Stopping a job leaves compatible `.part` files in place. Re-running the same job allows `yt-dlp` to continue where possible.
+
+### System telemetry
+CPU, RAM, disk, network and supported temperature information are collected through the `systeminformation` package.
+
+### Settings
+Settings persist to a JSON file inside Electron's OS user-data location. Folder selection uses the native Windows dialog and startup behavior uses Electron's login-item API.
+
+### Media tools
+Implemented tools map to real `yt-dlp` or `FFmpeg` behavior, including normalization, denoise, trim, chapter operations and multi-audio handling.
+
+---
+
+## 🧩 Deliberately not faked
+
+Two advanced features are intentionally not presented as complete:
+
+- **Automatic watermark removal** — reliable removal requires detection / localization logic, not a generic switch.
+- **AI upscaling** — a proper implementation requires a bundled model and inference pipeline.
+
+The browser-style **Universal Sniffer** uses real `yt-dlp` metadata analysis. It is not a packet-level browser network sniffer and it does not bypass DRM-protected media.
+
+---
+
+## 🛠️ Development
+
+### Requirements
+
+- Node.js 20+
+- npm
+- Windows is recommended for packaging the installer
+
+### Start in development mode
 
 ```bash
 npm install
-npm run dev          # starts Vite + Electron together, hot reload
+npm run fetch-bin
+npm run dev
 ```
 
-The dev window works fully for testing — it uses whatever `yt-dlp`/`ffmpeg`
-it finds in `resources/bin` (run `npm run fetch-bin` once) or on your system
-PATH if you don't fetch the bundled copies.
+The development app uses binaries in `resources/bin` when available, or supported system binaries where configured.
 
-## Building the real Windows installer
+---
 
-You have two options:
+## 📦 Build the Windows installer
 
-**Option A — GitHub Actions (recommended, no Windows machine needed)**
-Push this repo to GitHub. `.github/workflows/build-windows.yml` builds it on
-a real `windows-latest` runner and uploads
-`AnyDL Pro Ultra-Setup-6.0.0.exe` as a downloadable artifact. Or trigger it
-manually from the Actions tab ("Run workflow").
+### Option A — GitHub Actions
 
-**Option B — build locally on Windows**
+The repository includes a Windows build workflow. Run it from the **Actions** tab or trigger it through the configured workflow event.
+
+### Option B — local Windows build
+
 ```bash
 npm install
-npm run dist          # builds the frontend, fetches real binaries, packages the installer
+npm run dist
 ```
-The installer lands in `release/AnyDL Pro Ultra-Setup-*.exe`. This step must
-run on Windows (or with Wine) because `electron-builder`'s NSIS installer is
-a native Windows format.
 
-## What I simplified from the original mockup
+Output is written to:
 
-The original project was a beautifully designed but entirely simulated UI —
-fake progress math, a hardcoded 5-video sample list matched against typed
-URLs, random system stats, and an unused Python WebSocket bridge script. This
-version keeps the UI and rewires it to a real backend. A few things were
-intentionally scaled back rather than faked further — see "Smart tools" and
-"Universal Sniffer" above. If you want those finished (e.g. a real embedded
-`<webview>` browser with `session.webRequest` network sniffing, or a bundled
-upscaling model), that's a reasonable next step — just ask.
+```text
+release/AnyDL Pro Ultra-Setup-6.0.0.exe
+```
+
+The NSIS build creates a Windows x64 installer with Start Menu / desktop shortcut support and a configurable install location.
+
+---
+
+## 🧱 Technology
+
+| Layer | Technology |
+|---|---|
+| UI | React 19 + TypeScript + Vite |
+| Desktop shell | Electron |
+| Download engine | yt-dlp |
+| Media processing | FFmpeg |
+| Motion / UI | Framer Motion |
+| System data | systeminformation |
+| Packaging | electron-builder + NSIS |
+| Platform | Windows x64 |
+
+---
+
+## ⚠️ Responsible use
+
+Use this application only for media you are legally permitted to download or process. Platform rules, copyright law and content licenses still apply.
+
+---
+
+<div align="center">
+
+### Built as a real system, not a simulated demo.
+
+**Poojana Kaveesh**
+
+</div>
