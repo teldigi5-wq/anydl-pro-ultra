@@ -8,36 +8,43 @@
 ![React](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=for-the-badge&logo=windows11&logoColor=white)
-![Version](https://img.shields.io/badge/version-6.0.0-7C3AED?style=for-the-badge)
+![FFmpeg](https://img.shields.io/badge/FFmpeg-Media-007808?style=for-the-badge&logo=ffmpeg&logoColor=white)
 
-**A polished Electron desktop application with real metadata analysis, downloads, progress tracking, media processing and Windows packaging.**
+**A production-style Electron application with real metadata analysis, process management, media processing, live progress and Windows packaging.**
 
 </div>
 
 ---
 
-## ✨ Why this project exists
+## 🎯 Project snapshot
 
-AnyDL Pro Ultra began as a highly polished UI concept. This version connects that interface to a **real backend** instead of simulated data.
+| Area | Implementation |
+|---|---|
+| Desktop shell | Electron |
+| Frontend | React + TypeScript + Vite |
+| Download engine | `yt-dlp` child processes |
+| Media processing | FFmpeg |
+| Native integration | IPC + `contextBridge` |
+| System telemetry | `systeminformation` |
+| Packaging | electron-builder + NSIS |
+| Target | Windows x64 |
 
-The application runs actual `yt-dlp` and `FFmpeg` processes, reads real metadata, parses live download progress and writes real files to the user's computer.
-
-> The goal is simple: **never fake a feature just to make the UI look complete.**
+> **Engineering principle:** if a feature is shown as working, it should be backed by real behavior rather than simulated UI data.
 
 ---
 
-## 🚀 Highlights
+## 🚀 Core capabilities
 
-- **Real URL analysis** using `yt-dlp -J`
-- **Live progress, speed and ETA** parsed from the download process
-- **Pause / resume support** through `yt-dlp` partial files and continuation
-- **Native Windows folder picker**
-- **Persistent application settings** stored in the OS user-data directory
-- **System telemetry** using `systeminformation`
-- **Media processing tools** backed by real `FFmpeg` / `yt-dlp` flags
-- **Bundled Windows binaries** for zero manual `yt-dlp` / `FFmpeg` setup after installation
-- **Windows installer generation** using `electron-builder` + NSIS
-- **GitHub Actions Windows build workflow**
+- Real URL analysis through `yt-dlp -J`
+- Live percentage, speed and ETA parsing
+- Pause/resume-compatible download flow
+- Native Windows folder selection
+- Persistent application settings
+- CPU, RAM, disk, network and supported temperature telemetry
+- FFmpeg-backed media tools
+- Bundled `yt-dlp` and FFmpeg binaries
+- Windows installer generation
+- GitHub Actions Windows build workflow
 
 ---
 
@@ -52,53 +59,52 @@ flowchart LR
     Engine --> YTDLP[yt-dlp]
     Engine --> FFMPEG[FFmpeg]
     Main --> Store[Settings store]
-    Main --> System[System information]
+    Main --> System[System telemetry]
 ```
 
-### Core layout
+### Project layout
 
 ```text
 electron/main.cjs       Electron lifecycle + IPC handlers
 electron/engine.cjs     yt-dlp / FFmpeg process management
 electron/preload.cjs    Safe contextBridge API
 electron/store.cjs      Persistent settings storage
-scripts/fetch-bin.cjs   Fetches official Windows binaries
-src/lib/api.ts          Typed renderer-side API wrapper
+scripts/fetch-bin.cjs   Fetches Windows media binaries
+src/lib/api.ts          Typed renderer-side API
 src/                    React application UI
 ```
 
 ---
 
-## 🔍 What's real
+## 🔍 How the real workflow works
 
-### Analyze
-Runs `yt-dlp -J` against the supplied URL. Title, thumbnail, duration, uploader, subtitles and available formats come from the real source metadata.
+### 1. Analyze
 
-### Download
-Spawns a real `yt-dlp` child process with newline progress output and parses percentage, speed and ETA while downloading.
+The renderer requests metadata through the Electron bridge. The main process runs `yt-dlp -J`, then returns actual title, thumbnail, duration, uploader, subtitles and format information.
 
-### Resume
-Stopping a job leaves compatible `.part` files in place. Re-running the same job allows `yt-dlp` to continue where possible.
+### 2. Download
 
-### System telemetry
-CPU, RAM, disk, network and supported temperature information are collected through the `systeminformation` package.
+The engine starts a real `yt-dlp` child process and parses newline progress output to update percentage, speed and ETA in the UI.
 
-### Settings
-Settings persist to a JSON file inside Electron's OS user-data location. Folder selection uses the native Windows dialog and startup behavior uses Electron's login-item API.
+### 3. Process media
 
-### Media tools
-Implemented tools map to real `yt-dlp` or `FFmpeg` behavior, including normalization, denoise, trim, chapter operations and multi-audio handling.
+Supported tools map to actual `yt-dlp` or FFmpeg operations such as normalization, denoise, trim, chapter handling and multi-audio workflows.
+
+### 4. Persist settings
+
+Application preferences are stored in Electron's OS user-data location. Native folder selection and startup integration are handled by Electron APIs.
 
 ---
 
 ## 🧩 Deliberately not faked
 
-Two advanced features are intentionally not presented as complete:
+Some advanced ideas are intentionally not presented as complete when they require more engineering:
 
-- **Automatic watermark removal** — reliable removal requires detection / localization logic, not a generic switch.
-- **AI upscaling** — a proper implementation requires a bundled model and inference pipeline.
+- **Automatic watermark removal** needs reliable detection/localization logic.
+- **AI upscaling** needs a bundled model and inference pipeline.
+- The **Universal Sniffer** performs real `yt-dlp` metadata/format analysis; it is not a packet-level browser sniffer and does not bypass DRM-protected media.
 
-The browser-style **Universal Sniffer** uses real `yt-dlp` metadata analysis. It is not a packet-level browser network sniffer and it does not bypass DRM-protected media.
+That distinction is intentional: incomplete functionality is labelled honestly rather than simulated.
 
 ---
 
@@ -108,9 +114,9 @@ The browser-style **Universal Sniffer** uses real `yt-dlp` metadata analysis. It
 
 - Node.js 20+
 - npm
-- Windows is recommended for packaging the installer
+- Windows recommended for native installer packaging
 
-### Start in development mode
+### Run locally
 
 ```bash
 npm install
@@ -118,58 +124,67 @@ npm run fetch-bin
 npm run dev
 ```
 
-The development app uses binaries in `resources/bin` when available, or supported system binaries where configured.
+The app uses binaries from `resources/bin` when available, or supported system binaries where configured.
 
 ---
 
-## 📦 Build the Windows installer
+## 📦 Build for Windows
 
-### Option A — GitHub Actions
-
-The repository includes a Windows build workflow. Run it from the **Actions** tab or trigger it through the configured workflow event.
-
-### Option B — local Windows build
+### Local build
 
 ```bash
 npm install
 npm run dist
 ```
 
-Output is written to:
+Installer output is written under:
 
 ```text
-release/AnyDL Pro Ultra-Setup-6.0.0.exe
+release/
 ```
 
-The NSIS build creates a Windows x64 installer with Start Menu / desktop shortcut support and a configurable install location.
+### GitHub Actions
+
+The repository also includes a Windows build workflow so packaging can be reproduced on a clean Windows runner.
 
 ---
 
-## 🧱 Technology
+## 💼 What this project demonstrates
 
-| Layer | Technology |
-|---|---|
-| UI | React 19 + TypeScript + Vite |
-| Desktop shell | Electron |
-| Download engine | yt-dlp |
-| Media processing | FFmpeg |
-| Motion / UI | Framer Motion |
-| System data | systeminformation |
-| Packaging | electron-builder + NSIS |
-| Platform | Windows x64 |
+AnyDL is useful as a portfolio project because it combines several engineering concerns inside one desktop product:
+
+- frontend state and UI design
+- Electron process separation
+- safe renderer-to-main communication
+- child-process lifecycle management
+- parsing real CLI output
+- filesystem integration
+- binary/tool distribution
+- desktop packaging
+- honest feature boundaries
+
+---
+
+## 🗺️ Next upgrades
+
+- [ ] Add automated unit tests around command construction and progress parsing
+- [ ] Add integration tests for download lifecycle states
+- [ ] Add release notes and versioned GitHub Releases
+- [ ] Add polished product screenshots / demo media
+- [ ] Explore optional AI upscaling through a clearly separated model pipeline
 
 ---
 
 ## ⚠️ Responsible use
 
-Use this application only for media you are legally permitted to download or process. Platform rules, copyright law and content licenses still apply.
+Use this application only for media you are legally permitted to download or process. Platform terms, copyright law and content licenses still apply.
 
 ---
 
 <div align="center">
 
-### Built as a real system, not a simulated demo.
+### Real processes. Real files. Real desktop engineering.
 
-**Poojana Kaveesh**
+**Built by Poojana Kaveesh**
 
 </div>
