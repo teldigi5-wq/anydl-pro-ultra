@@ -4,6 +4,8 @@
 
 ### Real Windows desktop media downloader powered by `yt-dlp` + `FFmpeg`
 
+[![Build Windows Installer](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml/badge.svg)](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml)
+
 ![Electron](https://img.shields.io/badge/Electron-33-47848F?style=for-the-badge&logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
@@ -27,6 +29,7 @@
 | Native integration | IPC + `contextBridge` |
 | System telemetry | `systeminformation` |
 | Packaging | electron-builder + NSIS |
+| CI | TypeScript validation + frontend build + Windows installer packaging |
 | Target | Windows x64 |
 
 > **Engineering principle:** if a feature is shown as working, it should be backed by real behavior rather than simulated UI data.
@@ -44,7 +47,7 @@
 - FFmpeg-backed media tools
 - Bundled `yt-dlp` and FFmpeg binaries
 - Windows installer generation
-- GitHub Actions Windows build workflow
+- GitHub Actions validation and Windows packaging workflow
 
 ---
 
@@ -145,7 +148,13 @@ release/
 
 ### GitHub Actions
 
-The repository also includes a Windows build workflow so packaging can be reproduced on a clean Windows runner.
+The CI pipeline now performs three checks on clean runners:
+
+1. installs dependencies from the committed lockfile,
+2. runs TypeScript validation and the frontend production build,
+3. packages a Windows installer and uploads it as a workflow artifact.
+
+Pull requests are validated before merge, while pushes to `main` also exercise the packaging path.
 
 ---
 
@@ -161,6 +170,7 @@ AnyDL is useful as a portfolio project because it combines several engineering c
 - filesystem integration
 - binary/tool distribution
 - desktop packaging
+- CI validation on clean environments
 - honest feature boundaries
 
 ---
