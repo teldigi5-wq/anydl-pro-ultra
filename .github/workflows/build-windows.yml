@@ -3,26 +3,62 @@ name: Build Windows Installer
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: {}
 
-jobs:
-  build:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+permissions:
+  contents: read
 
-      - uses: actions/setup-node@v4
+concurrency:
+  group: anydl-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate TypeScript and frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Type-check
+        run: npx tsc --noEmit
+
       - name: Build frontend
         run: npm run build
 
-      - name: Fetch real yt-dlp/ffmpeg binaries
+  package-windows:
+    name: Package Windows installer
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch yt-dlp and FFmpeg binaries
         run: npm run fetch-bin
+
+      - name: Build frontend
+        run: npm run build
 
       - name: Build Windows installer
         run: npm run electron:pack
@@ -32,3 +68,5 @@ jobs:
         with:
           name: AnyDL-Pro-Ultra-Windows-Installer
           path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14
