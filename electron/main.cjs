@@ -250,6 +250,7 @@ app.on('child-process-gone', (_event, details) => {
 });
 
 app.whenReady().then(async () => {
+  store.ensureMigration(); // OS key vault is ready; migrate any legacy plaintext credentials.
   await ensureDownloadDir();
   applyAutoStart(store.getAll().autoStart);
   createWindow();
