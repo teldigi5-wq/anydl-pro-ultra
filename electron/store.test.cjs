@@ -6,8 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, 'store.cjs'), 'utf8');
-function createStore({ stored = null, encryption = true, backend = 'dpapi' } = {}) {
+function createStore({ stored = null, encryption = true, backend = 'dpapi', ready = true } = {}) {
   let disk = stored;
+  let appReady = ready;
   const fakeStorage = {
     isEncryptionAvailable: () => encryption,
     getSelectedStorageBackend: () => backend,
@@ -26,11 +27,11 @@ function createStore({ stored = null, encryption = true, backend = 'dpapi' } = {
   const module = { exports: {} };
   vm.runInNewContext(source, {
     require: name => name === 'fs' ? fakeFs : name === 'path' ? path
-      : name === 'electron' ? { app: { getPath: () => '/tmp/anydl-security-fixture' }, safeStorage: fakeStorage }
+      : name === 'electron' ? { app: { getPath: () => '/tmp/anydl-security-fixture', isReady: () => appReady }, safeStorage: fakeStorage }
       : require(name),
     module, Buffer, console
   }, { filename: 'electron/store.cjs' });
-  return { store: module.exports, saved: () => disk };
+  return { store: module.exports, saved: () => disk, setReady: value => { appReady = value; } };
 }
 test('API keys are encrypted at rest and not returned to renderer settings', () => {
   const e = createStore();
@@ -71,4 +72,16 @@ test('arbitrary settings keys cannot overwrite encrypted fields', () => {
   const e = createStore();
   e.store.set('_protectedKeys', {groqApiKey:'forged'});
   assert.equal(e.store.getPublic().groqApiKeyConfigured,false);
+});
+
+test('early GPU settings read never deletes legacy secrets before OS vault readiness', () => {
+  const seed = JSON.stringify({ groqApiKey: 'startup-legacy-synthetic-key' });
+  const e = createStore({stored:seed, ready:false});
+  assert.equal(e.store.getAll().groqApiKey, 'startup-legacy-synthetic-key');
+  assert.equal(e.saved(), seed, 'defer disk rewrite until Electron is ready');
+  e.setReady(true);
+  e.store.ensureMigration();
+  assert.ok(!e.saved().includes('startup-legacy-synthetic-key'));
+  const restored = createStore({stored:e.saved()});
+  assert.equal(restored.store.getAll().groqApiKey, 'startup-legacy-synthetic-key');
 });
