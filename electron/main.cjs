@@ -5,6 +5,7 @@ const fs = require('fs');
 const store = require('./store.cjs');
 const engine = require('./engine.cjs');
 const aiAgent = require('./aiAgent.cjs');
+const { isLocalDevUrl, isTrustedMainNavigation, allowedExternalBrowserLink } = require('./app-navigation.cjs');
 
 // Real fix for GPU-driven black-screen/render crashes some Windows machines
 // hit with Electron apps (usually integrated GPU + webview/backdrop-filter
@@ -51,12 +52,22 @@ function createWindow() {
 
   Menu.setApplicationMenu(null);
 
-  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const requestedDevUrl = process.env.VITE_DEV_SERVER_URL;
+  const devServerUrl = requestedDevUrl && isLocalDevUrl(requestedDevUrl) ? requestedDevUrl : null;
+  if (requestedDevUrl && !devServerUrl) console.warn('[security] Ignoring non-loopback Vite dev server URL.');
+  const trustedFile = path.join(__dirname, '..', 'dist', 'index.html');
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedMainNavigation(url, trustedFile, devServerUrl)) event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (allowedExternalBrowserLink(url)) shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
+  });
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    mainWindow.loadFile(trustedFile);
   }
 
   mainWindow.on('closed', () => { mainWindow = null; });
