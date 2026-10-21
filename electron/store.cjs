@@ -95,15 +95,26 @@ function load() {
     }
   }
   if (plaintextPresent) {
-    // Migrate old plaintext keys immediately. If secure storage is unavailable,
-    // the old secrets are wiped from settings.json and retained for this session.
-    try { saveSettings(data); }
-    catch { console.error('[store] Failed to migrate plaintext secrets from settings.json'); }
+    // main.cjs reads settings before app.whenReady() for GPU settings. Never
+    // destroy persisted legacy secrets while the OS key service is still booting.
+    if (typeof app.isReady === 'function' && !app.isReady()) {
+      needsMigration = true;
+    } else {
+      try { saveSettings(data); }
+      catch { console.error('[store] Failed to migrate plaintext secrets from settings.json'); }
+    }
   }
   return data;
 }
 
 let cache = null;
+let needsMigration = false;
+function ensureMigration() {
+  getAll();
+  if (!needsMigration) return;
+  try { saveSettings(cache); needsMigration = false; }
+  catch { console.error('[store] Deferred secure-key migration failed'); }
+}
 
 function getAll() {
   if (!cache) cache = load();
@@ -170,4 +181,4 @@ function clearHistory() {
   return [];
 }
 
-module.exports = { getAll, getPublic, set, DEFAULTS, getHistory, addHistoryEntry, clearHistory, secureStorageAvailable };
+module.exports = { getAll, getPublic, set, ensureMigration, DEFAULTS, getHistory, addHistoryEntry, clearHistory, secureStorageAvailable };
