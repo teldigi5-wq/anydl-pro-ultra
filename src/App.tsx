@@ -131,6 +131,7 @@ export default function App() {
   const [groqApiKey, setGroqApiKeyState] = useState('');
   const [openrouterApiKey, setOpenrouterApiKeyState] = useState('');
   const [anthropicApiKey, setAnthropicApiKeyState] = useState('');
+  const [configuredAiKeys, setConfiguredAiKeys] = useState({groqApiKey: false, openrouterApiKey: false, anthropicApiKey: false});
   const [disableHardwareAcceleration, setDisableHardwareAccelerationState] = useState(false);
   const [proxyUrl, setProxyUrlState] = useState('');
 
@@ -156,10 +157,12 @@ export default function App() {
         setGlobalLimitRateKBpsState(settings.globalLimitRateKBps || 0);
         setProxyEnabledState(!!settings.proxyEnabled);
         setUseAria2State(settings.useAria2 !== false);
-        setAiProviderState(settings.aiProvider === 'anthropic' ? 'anthropic' : 'groq');
-        setGroqApiKeyState(settings.groqApiKey || '');
-        setOpenrouterApiKeyState(settings.openrouterApiKey || '');
-        setAnthropicApiKeyState(settings.anthropicApiKey || '');
+        setAiProviderState(['groq','anthropic','openrouter'].includes(settings.aiProvider) ? settings.aiProvider : 'groq');
+        // The settings IPC intentionally never returns saved provider API keys.
+        setGroqApiKeyState('');
+        setOpenrouterApiKeyState('');
+        setAnthropicApiKeyState('');
+        setConfiguredAiKeys({groqApiKey: !!settings.groqApiKeyConfigured, openrouterApiKey: !!settings.openrouterApiKeyConfigured, anthropicApiKey: !!settings.anthropicApiKeyConfigured});
         setDisableHardwareAccelerationState(!!settings.disableHardwareAcceleration);
         setProxyUrlState(settings.proxyUrl || '');
         if (settings.smartTools) setSmartTools({ ...DEFAULT_SMART_TOOLS, ...settings.smartTools });
@@ -583,9 +586,9 @@ export default function App() {
   const setProxyEnabled = useCallback((v: boolean) => { setProxyEnabledState(v); api.setSetting('proxyEnabled', v); }, []);
   const setUseAria2 = useCallback((v: boolean) => { setUseAria2State(v); api.setSetting('useAria2', v); }, []);
   const setAiProvider = useCallback((v: 'groq' | 'anthropic' | 'openrouter') => { setAiProviderState(v); api.setSetting('aiProvider', v); }, []);
-  const setGroqApiKey = useCallback((v: string) => { setGroqApiKeyState(v); api.setSetting('groqApiKey', v); }, []);
-  const setOpenrouterApiKey = useCallback((v: string) => { setOpenrouterApiKeyState(v); api.setSetting('openrouterApiKey', v); }, []);
-  const setAnthropicApiKey = useCallback((v: string) => { setAnthropicApiKeyState(v); api.setSetting('anthropicApiKey', v); }, []);
+  const setGroqApiKey = useCallback((v: string) => { setGroqApiKeyState(v); setConfiguredAiKeys(p => ({...p, groqApiKey: !!v})); api.setSetting('groqApiKey', v); }, []);
+  const setOpenrouterApiKey = useCallback((v: string) => { setOpenrouterApiKeyState(v); setConfiguredAiKeys(p => ({...p, openrouterApiKey: !!v})); api.setSetting('openrouterApiKey', v); }, []);
+  const setAnthropicApiKey = useCallback((v: string) => { setAnthropicApiKeyState(v); setConfiguredAiKeys(p => ({...p, anthropicApiKey: !!v})); api.setSetting('anthropicApiKey', v); }, []);
   const setDisableHardwareAcceleration = useCallback((v: boolean) => { setDisableHardwareAccelerationState(v); api.setSetting('disableHardwareAcceleration', v); }, []);
   const setProxyUrl = useCallback((v: string) => { setProxyUrlState(v); api.setSetting('proxyUrl', v); }, []);
 
@@ -786,10 +789,13 @@ export default function App() {
                   aiProvider={aiProvider}
                   setAiProvider={setAiProvider}
                   groqApiKey={groqApiKey}
+                  groqApiKeyConfigured={configuredAiKeys.groqApiKey}
                   setGroqApiKey={setGroqApiKey}
                   openrouterApiKey={openrouterApiKey}
+                  openrouterApiKeyConfigured={configuredAiKeys.openrouterApiKey}
                   setOpenrouterApiKey={setOpenrouterApiKey}
                   anthropicApiKey={anthropicApiKey}
+                  anthropicApiKeyConfigured={configuredAiKeys.anthropicApiKey}
                   setAnthropicApiKey={setAnthropicApiKey}
                   disableHardwareAcceleration={disableHardwareAcceleration}
                   setDisableHardwareAcceleration={setDisableHardwareAcceleration}
