@@ -15,7 +15,7 @@
     "electron:pack": "electron-builder --win --x64 --publish never",
     "dist": "npm run build && npm run fetch-bin && npm run electron:pack",
     "dist:no-fetch": "npm run build && npm run electron:pack",
-    "security:test": "node --check electron/main.cjs && node --check electron/store.cjs && node --test electron/ipc-authorization.test.cjs electron/store.test.cjs electron/app-navigation.test.cjs"
+    "security:test": "node --check electron/main.cjs && node --check electron/store.cjs && node --test electron/ipc-authorization.test.cjs electron/store.test.cjs electron/app-navigation.test.cjs electron/webview-policy.test.cjs"
   },
   "dependencies": {
     "@types/canvas-confetti": "^1.9.0",
