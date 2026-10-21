@@ -260,8 +260,17 @@ app.on('window-all-closed', () => {
 // ---------------------------------------------------------------------------
 // IPC handlers
 // ---------------------------------------------------------------------------
-ipcMain.handle('settings:getAll', () => store.getAll());
-ipcMain.handle('settings:set', (_e, key, value) => {
+// Privileged handlers are never callable from embedded third-party webviews.
+const { trustedRenderer } = require('./ipc-authorization.cjs');
+function trustedHandle(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!trustedRenderer(event, mainWindow)) throw new Error('Unauthorized IPC sender');
+    return handler(event, ...args);
+  });
+}
+
+trustedHandle('settings:getAll', () => store.getAll());
+trustedHandle('settings:set', (_e, key, value) => {
   const data = store.set(key, value);
   if (key === 'autoStart') applyAutoStart(value);
   if (key === 'proxyEnabled' || key === 'proxyUrl') {
@@ -271,14 +280,14 @@ ipcMain.handle('settings:set', (_e, key, value) => {
   return data;
 });
 
-ipcMain.handle('dialog:chooseFolder', async () => {
+trustedHandle('dialog:chooseFolder', async () => {
   const res = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory', 'createDirectory'] });
   if (res.canceled || !res.filePaths.length) return null;
   store.set('downloadPath', res.filePaths[0]);
   return res.filePaths[0];
 });
 
-ipcMain.handle('dialog:chooseSubtitleFile', async () => {
+trustedHandle('dialog:chooseSubtitleFile', async () => {
   const res = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
     filters: [{ name: 'Subtitle files', extensions: ['srt'] }]
@@ -287,20 +296,20 @@ ipcMain.handle('dialog:chooseSubtitleFile', async () => {
   return res.filePaths[0];
 });
 
-ipcMain.handle('shell:openPath', async (_e, targetPath) => {
+trustedHandle('shell:openPath', async (_e, targetPath) => {
   if (!targetPath) return false;
   const err = await shell.openPath(targetPath);
   return !err;
 });
-ipcMain.handle('shell:showInFolder', (_e, targetPath) => {
+trustedHandle('shell:showInFolder', (_e, targetPath) => {
   if (!targetPath || !fs.existsSync(targetPath)) return false;
   shell.showItemInFolder(targetPath);
   return true;
 });
 
-ipcMain.handle('engine:info', () => engine.getEngineInfo(store.getAll()));
-ipcMain.handle('engine:updateYtDlp', () => engine.updateYtDlp(store.getAll()));
-ipcMain.handle('engine:gpuCheck', () => engine.checkGpuCapability());
+trustedHandle('engine:info', () => engine.getEngineInfo(store.getAll()));
+trustedHandle('engine:updateYtDlp', () => engine.updateYtDlp(store.getAll()));
+trustedHandle('engine:gpuCheck', () => engine.checkGpuCapability());
 
 function getAiProviderAndKey() {
   const s = store.getAll();
@@ -309,11 +318,11 @@ function getAiProviderAndKey() {
   return { provider, key };
 }
 
-ipcMain.handle('ai:checkKey', () => {
+trustedHandle('ai:checkKey', () => {
   const { provider, key } = getAiProviderAndKey();
   return aiAgent.checkApiKey(provider, key);
 });
-ipcMain.handle('ai:parseIntent', async (_e, instruction) => {
+trustedHandle('ai:parseIntent', async (_e, instruction) => {
   const { provider, key } = getAiProviderAndKey();
   if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : provider === 'openrouter' ? 'OpenRouter (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI parsing.` };
   try {
@@ -322,7 +331,7 @@ ipcMain.handle('ai:parseIntent', async (_e, instruction) => {
     return { ok: false, error: e.message };
   }
 });
-ipcMain.handle('ai:explainError', async (_e, logText) => {
+trustedHandle('ai:explainError', async (_e, logText) => {
   const { provider, key } = getAiProviderAndKey();
   if (!key) return { ok: false, error: `No ${provider === 'groq' ? 'Groq (free)' : provider === 'openrouter' ? 'OpenRouter (free)' : 'Anthropic'} API key set. Add one in Settings to enable real AI error explanations.` };
   try {
@@ -331,7 +340,7 @@ ipcMain.handle('ai:explainError', async (_e, logText) => {
     return { ok: false, error: e.message };
   }
 });
-ipcMain.handle('ai:suggestFilename', async (_e, rawTitle) => {
+trustedHandle('ai:suggestFilename', async (_e, rawTitle) => {
   const { provider, key } = getAiProviderAndKey();
   if (!key) return { ok: false, error: 'No AI API key set.' };
   try {
@@ -341,7 +350,7 @@ ipcMain.handle('ai:suggestFilename', async (_e, rawTitle) => {
   }
 });
 
-ipcMain.handle('ai:translateSubtitles', async (_e, filePath, targetLanguageName) => {
+trustedHandle('ai:translateSubtitles', async (_e, filePath, targetLanguageName) => {
   const { provider, key } = getAiProviderAndKey();
   if (!key) return { ok: false, error: 'No AI API key set. Add one in Settings.' };
   try {
@@ -356,7 +365,7 @@ ipcMain.handle('ai:translateSubtitles', async (_e, filePath, targetLanguageName)
   }
 });
 
-ipcMain.handle('ai:summarizeVideo', async (_e, url, title) => {
+trustedHandle('ai:summarizeVideo', async (_e, url, title) => {
   const { provider, key } = getAiProviderAndKey();
   if (!key) return { ok: false, error: 'No AI API key set. Add one in Settings.' };
   try {
@@ -371,7 +380,7 @@ ipcMain.handle('ai:summarizeVideo', async (_e, url, title) => {
   }
 });
 
-ipcMain.handle('video:analyze', async (_e, url) => {
+trustedHandle('video:analyze', async (_e, url) => {
   try {
     const result = await engine.analyzeUrl(url, store.getAll());
     return { ok: true, data: result };
@@ -380,7 +389,7 @@ ipcMain.handle('video:analyze', async (_e, url) => {
   }
 });
 
-ipcMain.handle('playlist:analyze', async (_e, url) => {
+trustedHandle('playlist:analyze', async (_e, url) => {
   try {
     const result = await engine.analyzePlaylist(url, store.getAll());
     return { ok: true, data: result };
@@ -408,10 +417,10 @@ function makeDownloadEventHandler(task, settings) {
   };
 }
 
-ipcMain.handle('history:get', () => store.getHistory());
-ipcMain.handle('history:clear', () => store.clearHistory());
+trustedHandle('history:get', () => store.getHistory());
+trustedHandle('history:clear', () => store.clearHistory());
 
-ipcMain.handle('download:start', async (_e, task) => {
+trustedHandle('download:start', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
   const id = task.id;
@@ -421,9 +430,9 @@ ipcMain.handle('download:start', async (_e, task) => {
   return { ok: true, id };
 });
 
-ipcMain.handle('download:cancel', (_e, id) => ({ ok: engine.cancelDownload(id) }));
-ipcMain.handle('download:pause', (_e, id) => ({ ok: engine.pauseDownload(id) }));
-ipcMain.handle('download:resume', async (_e, task) => {
+trustedHandle('download:cancel', (_e, id) => ({ ok: engine.cancelDownload(id) }));
+trustedHandle('download:pause', (_e, id) => ({ ok: engine.pauseDownload(id) }));
+trustedHandle('download:resume', async (_e, task) => {
   const settings = store.getAll();
   const outputDir = settings.downloadPath || await ensureDownloadDir();
   const proxyUrl = settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : undefined;
@@ -432,8 +441,8 @@ ipcMain.handle('download:resume', async (_e, task) => {
   return { ok: true };
 });
 
-ipcMain.handle('app:platform', () => process.platform);
-ipcMain.handle('app:logRendererError', (_e, detail) => {
+trustedHandle('app:platform', () => process.platform);
+trustedHandle('app:logRendererError', (_e, detail) => {
   try {
     const logPath = path.join(app.getPath('userData'), 'renderer-crash.log');
     const entry = `\n[${new Date().toISOString()}]\n${detail}\n`;
@@ -443,5 +452,5 @@ ipcMain.handle('app:logRendererError', (_e, detail) => {
   }
   return true;
 });
-ipcMain.handle('browser:partition', () => BROWSER_PARTITION);
-ipcMain.handle('browser:preload-path', () => `file://${path.join(__dirname, 'webview-preload.cjs')}`);
+trustedHandle('browser:partition', () => BROWSER_PARTITION);
+trustedHandle('browser:preload-path', () => `file://${path.join(__dirname, 'webview-preload.cjs')}`);
