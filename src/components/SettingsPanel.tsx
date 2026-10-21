@@ -31,10 +31,13 @@ interface SettingsPanelProps {
   aiProvider: 'groq' | 'anthropic' | 'openrouter';
   setAiProvider: (v: 'groq' | 'anthropic' | 'openrouter') => void;
   groqApiKey: string;
+  groqApiKeyConfigured: boolean;
   setGroqApiKey: (v: string) => void;
   openrouterApiKey: string;
+  openrouterApiKeyConfigured: boolean;
   setOpenrouterApiKey: (v: string) => void;
   anthropicApiKey: string;
+  anthropicApiKeyConfigured: boolean;
   setAnthropicApiKey: (v: string) => void;
   disableHardwareAcceleration: boolean;
   setDisableHardwareAcceleration: (v: boolean) => void;
@@ -65,10 +68,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   aiProvider,
   setAiProvider,
   groqApiKey,
+  groqApiKeyConfigured,
   setGroqApiKey,
   openrouterApiKey,
+  openrouterApiKeyConfigured,
   setOpenrouterApiKey,
   anthropicApiKey,
+  anthropicApiKeyConfigured,
   setAnthropicApiKey,
   disableHardwareAcceleration,
   setDisableHardwareAcceleration
@@ -226,8 +232,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <Sparkles className="w-3.5 h-3.5" /> Real AI Agents
             </label>
             <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Powers real AI parsing in the Agents Hub and AI error explanations. Bring your own key — it's stored
-              locally on this PC and sent directly to the provider, never through us. <strong>Groq's free tier needs no
+              Powers real AI parsing in the Agents Hub and AI error explanations. Bring your own key — it's protected using your OS credential encryption when available,
+              used only by the local main process and sent to the selected provider. <strong>Groq's free tier needs no
               credit card</strong> and is the easiest way to turn this on at zero cost.
             </p>
             <div className="flex gap-2">
@@ -270,6 +276,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none"
                   style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
                 />
+                {groqApiKeyConfigured && <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>A saved key is configured. Enter a new key to replace it; the existing key is never shown.</p>}
                 <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
                   Get a free key: sign up at <span className="font-mono">console.groq.com</span> — no credit card required.
                 </p>
@@ -285,6 +292,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none"
                   style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
                 />
+                {openrouterApiKeyConfigured && <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>A saved key is configured. Enter a new key to replace it; the existing key is never shown.</p>}
                 <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
                   Get a free key: sign up at <span className="font-mono">openrouter.ai/keys</span> — uses a free-tier model, no cost.
                   If you've shared a key anywhere public before, generate a fresh one — treat any previously-exposed key as compromised.
@@ -301,6 +309,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono text-white focus:outline-none"
                   style={{ background: 'var(--bg-primary)', borderColor: 'var(--border-color)' }}
                 />
+                {anthropicApiKeyConfigured && <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>A saved key is configured. Enter a new key to replace it; the existing key is never shown.</p>}
                 <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
                   Get a key: sign up at <span className="font-mono">console.anthropic.com</span> — this is a paid API (billed by Anthropic, not us).
                 </p>
