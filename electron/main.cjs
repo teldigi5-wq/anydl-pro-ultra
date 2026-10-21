@@ -6,6 +6,7 @@ const store = require('./store.cjs');
 const engine = require('./engine.cjs');
 const aiAgent = require('./aiAgent.cjs');
 const { isLocalDevUrl, isTrustedMainNavigation, allowedExternalBrowserLink } = require('./app-navigation.cjs');
+const { authorizeWebviewAttach } = require('./webview-policy.cjs');
 
 // Real fix for GPU-driven black-screen/render crashes some Windows machines
 // hit with Electron apps (usually integrated GPU + webview/backdrop-filter
@@ -56,6 +57,14 @@ function createWindow() {
   const devServerUrl = requestedDevUrl && isLocalDevUrl(requestedDevUrl) ? requestedDevUrl : null;
   if (requestedDevUrl && !devServerUrl) console.warn('[security] Ignoring non-loopback Vite dev server URL.');
   const trustedFile = path.join(__dirname, '..', 'dist', 'index.html');
+  // Defense in depth: the embedded page never chooses its own privileged preload.
+  // No main-window sandbox change here; that requires real Windows testing.
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    if (!authorizeWebviewAttach(webPreferences, params,
+      path.join(__dirname, 'webview-preload.cjs'), BROWSER_PARTITION)) {
+      event.preventDefault();
+    }
+  });
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedMainNavigation(url, trustedFile, devServerUrl)) event.preventDefault();
   });
