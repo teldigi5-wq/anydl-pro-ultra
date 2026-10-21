@@ -14,7 +14,8 @@
     "fetch-bin": "node scripts/fetch-bin.cjs",
     "electron:pack": "electron-builder --win --x64 --publish never",
     "dist": "npm run build && npm run fetch-bin && npm run electron:pack",
-    "dist:no-fetch": "npm run build && npm run electron:pack"
+    "dist:no-fetch": "npm run build && npm run electron:pack",
+    "security:test": "node --check electron/main.cjs && node --test electron/ipc-authorization.test.cjs"
   },
   "dependencies": {
     "@types/canvas-confetti": "^1.9.0",
@@ -59,13 +60,20 @@
       {
         "from": "resources/bin",
         "to": "bin",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "icon": "build/icon.ico",
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico",
       "artifactName": "${productName}-Setup-${version}.${ext}"
