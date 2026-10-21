@@ -269,9 +269,9 @@ function trustedHandle(channel, handler) {
   });
 }
 
-trustedHandle('settings:getAll', () => store.getAll());
+trustedHandle('settings:getAll', () => store.getPublic());
 trustedHandle('settings:set', (_e, key, value) => {
-  const data = store.set(key, value);
+  const data = store.set(key, value); // Public, redacted settings only.
   if (key === 'autoStart') applyAutoStart(value);
   if (key === 'proxyEnabled' || key === 'proxyUrl') {
     const { session } = require('electron');
