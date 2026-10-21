@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
+const { app, safeStorage } = require('electron');
 
 const DEFAULTS = {
   downloadPath: '',
@@ -45,33 +45,95 @@ function filePath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
 
-function load() {
+// API keys never belong in the renderer or plaintext settings.json.
+const SECRET_KEYS = Object.freeze(['anthropicApiKey', 'groqApiKey', 'openrouterApiKey']);
+function secureStorageAvailable() {
   try {
-    const raw = fs.readFileSync(filePath(), 'utf-8');
-    return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULTS, downloadPath: path.join(app.getPath('downloads'), 'AnyDL Pro Ultra') };
+    return Boolean(safeStorage?.isEncryptionAvailable?.()) &&
+      safeStorage?.getSelectedStorageBackend?.() !== 'basic_text';
+  } catch { return false; }
+}
+
+function saveSettings(data) {
+  const disk = { ...data };
+  const encrypted = { ...(data._protectedKeys || {}) };
+  for (const key of SECRET_KEYS) {
+    const value = typeof data[key] === 'string' ? data[key] : '';
+    if (value && secureStorageAvailable()) {
+      encrypted[key] = safeStorage.encryptString(value).toString('base64');
+    }
+    // When the OS key service is absent, secrets stay usable only in memory.
+    // Old plaintext secrets are removed on the first load/set, never re-saved.
+    delete disk[key];
   }
+  disk._protectedKeys = encrypted;
+  fs.mkdirSync(path.dirname(filePath()), { recursive: true });
+  fs.writeFileSync(filePath(), JSON.stringify(disk, null, 2), { encoding: 'utf8', mode: 0o600 });
+}
+
+function load() {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath(), 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw Error('Invalid settings object');
+  } catch {
+    return { ...DEFAULTS, _protectedKeys: {}, downloadPath: path.join(app.getPath('downloads'), 'AnyDL Pro Ultra') };
+  }
+  const data = { ...DEFAULTS, ...parsed };
+  data._protectedKeys = parsed._protectedKeys && typeof parsed._protectedKeys === 'object'
+    && !Array.isArray(parsed._protectedKeys) ? { ...parsed._protectedKeys } : {};
+  let plaintextPresent = false;
+  for (const key of SECRET_KEYS) {
+    const legacy = typeof parsed[key] === 'string' ? parsed[key] : '';
+    plaintextPresent ||= Object.prototype.hasOwnProperty.call(parsed, key);
+    if (legacy) { data[key] = legacy; continue; }
+    data[key] = '';
+    const ciphertext = data._protectedKeys[key];
+    if (typeof ciphertext === 'string' && secureStorageAvailable()) {
+      try { data[key] = safeStorage.decryptString(Buffer.from(ciphertext, 'base64')); }
+      catch { console.error('[store] Unable to decrypt a saved AI key; it was not sent to the renderer.'); }
+    }
+  }
+  if (plaintextPresent) {
+    // Migrate old plaintext keys immediately. If secure storage is unavailable,
+    // the old secrets are wiped from settings.json and retained for this session.
+    try { saveSettings(data); }
+    catch { console.error('[store] Failed to migrate plaintext secrets from settings.json'); }
+  }
+  return data;
 }
 
 let cache = null;
 
 function getAll() {
   if (!cache) cache = load();
-  return cache;
+  return cache; // Main process only: AI calls need the decrypted value.
+}
+
+function getPublic() {
+  const data = getAll();
+  const safe = { ...data };
+  delete safe._protectedKeys;
+  for (const key of SECRET_KEYS) {
+    safe[key + 'Configured'] = Boolean(data[key]);
+    safe[key] = ''; // Never return a saved key to an untrusted renderer.
+  }
+  return safe;
 }
 
 function set(key, value) {
+  if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) return getPublic();
   const data = getAll();
+  if (SECRET_KEYS.includes(key)) {
+    if (typeof value !== 'string' || value.length > 4096) return getPublic();
+    // Clearing/replacing a key must remove obsolete encrypted state.
+    delete data._protectedKeys[key];
+  }
   data[key] = value;
   cache = data;
-  try {
-    fs.mkdirSync(path.dirname(filePath()), { recursive: true });
-    fs.writeFileSync(filePath(), JSON.stringify(data, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('[store] failed to persist settings', e);
-  }
-  return data;
+  try { saveSettings(data); }
+  catch (e) { console.error('[store] Failed to persist settings', e?.name || 'write_error'); }
+  return getPublic();
 }
 
 // ---------------------------------------------------------------------------
@@ -108,4 +170,4 @@ function clearHistory() {
   return [];
 }
 
-module.exports = { getAll, set, DEFAULTS, getHistory, addHistoryEntry, clearHistory };
+module.exports = { getAll, getPublic, set, DEFAULTS, getHistory, addHistoryEntry, clearHistory, secureStorageAvailable };
