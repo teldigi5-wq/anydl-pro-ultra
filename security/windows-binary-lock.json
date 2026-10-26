@@ -1,0 +1,19 @@
+{
+  "_notice": "Pinned Windows build assets. Update each URL and SHA-256 together after independent release review; Real-ESRGAN and aria2 SHA-256 values were captured by PR CI run 40272355080, yt-dlp and FFmpeg SHA-256 are GitHub release asset digest values on 2026-10-26.",
+  "ytDlp": {
+    "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.21/yt-dlp.exe",
+    "sha256": "33121d192d706e62f684a06f80918e3f3a8ba52ac3a65213b6951c39c7d9f555"
+  },
+  "ffmpeg": {
+    "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-25-13-00/ffmpeg-N-128094-g31855b2a70-win64-gpl.zip",
+    "sha256": "94810842a634c7742936dc2690d6b4957561a38b05f00c27f045e07131924acc"
+  },
+  "realEsrgan": {
+    "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+    "sha256": "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d"
+  },
+  "aria2": {
+    "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
+    "sha256": "67d015301eef0b612191212d564c5bb0a14b5b9c4796b76454276a4d28d9b288"
+  }
+}
