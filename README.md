@@ -1,200 +1,149 @@
 <div align="center">
 
-# ⚡ AnyDL Pro Ultra
+# AnyDL Pro Ultra
 
-### Real Windows desktop media downloader powered by `yt-dlp` + `FFmpeg`
+**Windows desktop media downloader • Electron + React + TypeScript • yt-dlp + FFmpeg**
 
-[![Build Windows Installer](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml/badge.svg)](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml)
+[![Windows build](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml/badge.svg)](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml)
+[Source](https://github.com/teldigi5-wq/anydl-pro-ultra) · [Security policy](SECURITY.md) · [Release evidence](docs/SECURITY_RELEASE_EVIDENCE.md)
 
-![Electron](https://img.shields.io/badge/Electron-33-47848F?style=for-the-badge&logo=electron&logoColor=white)
-![React](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=for-the-badge&logo=windows11&logoColor=white)
-![FFmpeg](https://img.shields.io/badge/FFmpeg-Media-007808?style=for-the-badge&logo=ffmpeg&logoColor=white)
-
-**A production-style Electron application with real metadata analysis, process management, media processing, live progress and Windows packaging.**
+**Engineering portfolio project maintained by [Poojana Kaveesh Sellahewa](https://github.com/teldigi5-wq).**
 
 </div>
 
----
+## At a glance
 
-## 🎯 Project snapshot
+AnyDL combines a React desktop UI with an Electron main process that invokes **real local command-line download and media tools**. It is designed to expose useful progress, metadata, OS integration, and media workflows without granting arbitrary Node.js access to web content.
 
-| Area | Implementation |
-|---|---|
-| Desktop shell | Electron |
-| Frontend | React + TypeScript + Vite |
-| Download engine | `yt-dlp` child processes |
-| Media processing | FFmpeg |
-| Native integration | IPC + `contextBridge` |
-| System telemetry | `systeminformation` |
-| Packaging | electron-builder + NSIS |
-| CI | TypeScript validation + frontend build + Windows installer packaging |
-| Target | Windows x64 |
+| Layer | Implemented approach |
+| --- | --- |
+| Desktop UI | React 19, TypeScript 5, Vite 7, Tailwind CSS |
+| Native shell | Electron 44, isolated/sandboxed renderer, preload bridge |
+| Download engine | Local yt-dlp process; structured metadata and progress parsing |
+| Media processing | FFmpeg and optional native tooling |
+| Configuration | Electron user-data settings; OS-backed encryption for supported AI credentials |
+| Windows distribution | electron-builder / NSIS (x64) |
+| CI | Node security tests, TypeScript, Vite build, dependency audit, Windows renderer smoke and installer packaging |
 
-> **Engineering principle:** if a feature is shown as working, it should be backed by real behavior rather than simulated UI data.
+**Verification boundary:** GitHub Actions has produced Windows installer artifacts and passed the automated suite. That is **not** evidence of complete installation testing, feature-by-feature downloads, code signing, or production certification.
 
----
+## The engineering problem
 
-## 🚀 Core capabilities
+A desktop downloader sits across multiple trust and reliability boundaries: untrusted URLs, long-running external processes, a privileged filesystem-capable application, and an embedded browser. The project separates the UI from privileged operations and attempts to make download state and failures observable.
 
-- Real URL analysis through `yt-dlp -J`
-- Live percentage, speed and ETA parsing
-- Pause/resume-compatible download flow
-- Native Windows folder selection
-- Persistent application settings
-- CPU, RAM, disk, network and supported temperature telemetry
-- FFmpeg-backed media tools
-- Bundled `yt-dlp` and FFmpeg binaries
-- Windows installer generation
-- GitHub Actions validation and Windows packaging workflow
+### Architecture
 
----
-
-## 🧠 Architecture
-
-```mermaid
+~~~mermaid
 flowchart LR
-    UI[React + Vite UI] --> API[Typed renderer API]
-    API --> Bridge[Electron preload / contextBridge]
-    Bridge --> Main[Electron main process]
-    Main --> Engine[Download & media engine]
-    Engine --> YTDLP[yt-dlp]
-    Engine --> FFMPEG[FFmpeg]
-    Main --> Store[Settings store]
-    Main --> System[System telemetry]
-```
+    User[Desktop user] --> UI[React / TypeScript UI]
+    UI --> Preload[Isolated Electron preload bridge]
+    Preload --> IPC[Validated main-process IPC]
+    IPC --> Engine[Download / media engine]
+    Engine --> YT[yt-dlp]
+    Engine --> FF[FFmpeg]
+    IPC --> Store[Local settings / OS credential backend]
+    IPC --> OS[Native dialog / system data]
+~~~
 
-### Project layout
+The **renderer is not the operating system**. Native actions go through the main process, with an explicit IPC trust boundary. Embedded web content is treated separately from the trusted application UI.
 
-```text
-electron/main.cjs       Electron lifecycle + IPC handlers
-electron/engine.cjs     yt-dlp / FFmpeg process management
-electron/preload.cjs    Safe contextBridge API
-electron/store.cjs      Persistent settings storage
-scripts/fetch-bin.cjs   Fetches Windows media binaries
-src/lib/api.ts          Typed renderer-side API
-src/                    React application UI
-```
+### Representative workflow
 
----
+1. Enter a supported URL and request **real metadata** using yt-dlp.
+2. Select available formats or media options and start a managed child process.
+3. Observe parsed progress, speed and ETA where the underlying tool reports them.
+4. Write output through configured local paths; optional FFmpeg steps process supported formats.
+5. Recover from failures or retry through the application's workflow rather than assuming every site or format works.
 
-## 🔍 How the real workflow works
+Site restrictions, broken upstream extractors, DRM, missing models, drivers and network failures can limit functionality. No claim is made that every download source succeeds.
 
-### 1. Analyze
+## What I can explain in an interview
 
-The renderer requests metadata through the Electron bridge. The main process runs `yt-dlp -J`, then returns actual title, thumbnail, duration, uploader, subtitles and format information.
+The implementation and commit history provide concrete topics to demonstrate—not a claim that every line was written without assistance.
 
-### 2. Download
+| Engineering area | Where to inspect | Decision / trade-off |
+| --- | --- | --- |
+| Privileged UI boundary | [electron/main.cjs](electron/main.cjs), [preload](electron/preload.cjs), [IPC policy](electron/ipc-authorization.cjs) | Renderer sandbox, context isolation and main-frame IPC authorization |
+| Untrusted browsing | [webview policy](electron/webview-policy.cjs), [navigation policy](electron/app-navigation.cjs) | Keep external navigation outside privileged application pages |
+| API credential handling | [settings store](electron/store.cjs), [key storage notes](SECURITY_KEY_STORAGE.md) | Encrypt supported saved keys through Electron safeStorage; use session-only fallback |
+| Native build supply chain | [binary lock](security/windows-binary-lock.json), [fetch script](scripts/fetch-bin.cjs) | Pin release URLs, check SHA-256 before extraction and package reproducibly |
+| Regression gates | [Electron tests](electron/ipc-authorization.test.cjs), [Windows CI](.github/workflows/build-windows.yml) | Run trusted-renderer and policy tests before packaging |
 
-The engine starts a real `yt-dlp` child process and parses newline progress output to update percentage, speed and ETA in the UI.
+**Security remediation evidence:** [PR #13](https://github.com/teldigi5-wq/anydl-pro-ultra/pull/13) was merged with the Electron upgrade, sandbox smoke testing and pinned external binaries. The test suite included **20 passing automated Node tests** on the verified October 26, 2026 build. The numbers describe that run, not a promise about all future commits.
 
-### 3. Process media
+## Run and test
 
-Supported tools map to actual `yt-dlp` or FFmpeg operations such as normalization, denoise, trim, chapter handling and multi-audio workflows.
+**Prerequisites:** Windows x64 for the intended desktop installer, Node.js compatible with the [package engines](package.json) (the CI baseline is 22.23.4), npm, internet access for pinned third-party binaries, and sufficient disk space.
 
-### 4. Persist settings
+~~~bash
+git clone https://github.com/teldigi5-wq/anydl-pro-ultra.git
+cd anydl-pro-ultra
+npm ci
+npm run security:test
+npx tsc --noEmit
+npm run build
+~~~
 
-Application preferences are stored in Electron's OS user-data location. Native folder selection and startup integration are handled by Electron APIs.
+For local Electron development:
 
----
-
-## 🧩 Deliberately not faked
-
-Some advanced ideas are intentionally not presented as complete when they require more engineering:
-
-- **Automatic watermark removal** needs reliable detection/localization logic.
-- **AI upscaling** needs a bundled model and inference pipeline.
-- The **Universal Sniffer** performs real `yt-dlp` metadata/format analysis; it is not a packet-level browser sniffer and does not bypass DRM-protected media.
-
-That distinction is intentional: incomplete functionality is labelled honestly rather than simulated.
-
----
-
-## 🛠️ Development
-
-### Requirements
-
-- Node.js 20+
-- npm
-- Windows recommended for native installer packaging
-
-### Run locally
-
-```bash
-npm install
-npm run fetch-bin
+~~~bash
 npm run dev
-```
+~~~
 
-The app uses binaries from `resources/bin` when available, or supported system binaries where configured.
+For a Windows installer build:
 
----
-
-## 📦 Build for Windows
-
-### Local build
-
-```bash
-npm install
+~~~bash
 npm run dist
-```
+~~~
 
-Installer output is written under:
+The build downloads pinned official release artifacts specified in [security/windows-binary-lock.json](security/windows-binary-lock.json), validates SHA-256, and creates an NSIS installer under **release/**. Do not replace hashes without reviewing the corresponding source artifact. To inspect CI-produced files, open [Build Windows Installer](https://github.com/teldigi5-wq/anydl-pro-ultra/actions/workflows/build-windows.yml), select a successful run and review its uploaded installer and SHA256SUMS.txt.
 
-```text
-release/
-```
+### Verified vs. not verified
 
-### GitHub Actions
+| Verified by repository CI | Still requires manual validation |
+| --- | --- |
+| Static TypeScript and Vite build | Clean Windows installation and uninstall |
+| Main-frame IPC, navigation, webview and settings regressions | Real downloads across representative permitted providers |
+| Sandbox preload smoke on Windows | Actual OS key-store migration and AI provider credential lifecycle |
+| High-severity dependency audit and installer generation | Installer signing, SmartScreen behavior and end-user benchmarks |
 
-The CI pipeline now performs three checks on clean runners:
+**No fake performance claims:** throughput depends on the media provider, network, yt-dlp, FFmpeg, hardware and download settings. The built-in browser is not a DRM bypass.
 
-1. installs dependencies from the committed lockfile,
-2. runs TypeScript validation and the frontend production build,
-3. packages a Windows installer and uploads it as a workflow artifact.
+## Repository guide
 
-Pull requests are validated before merge, while pushes to `main` also exercise the packaging path.
+| Location | Responsibility |
+| --- | --- |
+| [src/](src/) | UI, views, state and application interactions |
+| [electron/engine.cjs](electron/engine.cjs) | Download and processing subprocesses |
+| [electron/main.cjs](electron/main.cjs) | Desktop lifecycle and privileged IPC |
+| [electron/store.cjs](electron/store.cjs) | Settings and protected key storage |
+| [scripts/fetch-bin.cjs](scripts/fetch-bin.cjs) | Reviewed native binary acquisition |
+| [docs/SECURITY_RELEASE_EVIDENCE.md](docs/SECURITY_RELEASE_EVIDENCE.md) | Security verification history and manual release gates |
 
----
+Some UI development fixtures exist (for example, [src/data/mockVideos.ts](src/data/mockVideos.ts)); **do not mistake mock content for a measured live download**.
 
-## 💼 What this project demonstrates
+## Demo checklist
 
-AnyDL is useful as a portfolio project because it combines several engineering concerns inside one desktop product:
+- Launch the app and identify the UI → preload → main → yt-dlp path.
+- Show a supported, authorized media URL being analyzed and explain what metadata actually comes from yt-dlp.
+- Show a non-destructive security test (`npm run security:test`) and its assertions.
+- Open the Windows build workflow to demonstrate independent-runner packaging and checksums.
+- Explain one failure mode you addressed (renderer crash, untrusted IPC, or malicious binary replacement), plus one limitation you have not yet solved.
 
-- frontend state and UI design
-- Electron process separation
-- safe renderer-to-main communication
-- child-process lifecycle management
-- parsing real CLI output
-- filesystem integration
-- binary/tool distribution
-- desktop packaging
-- CI validation on clean environments
-- honest feature boundaries
+## Ownership and attribution
 
----
+**Repository owner / project maintainer:** [Poojana Kaveesh Sellahewa](https://github.com/teldigi5-wq). The version-controlled source, [commits](https://github.com/teldigi5-wq/anydl-pro-ultra/commits/main), [PR history](https://github.com/teldigi5-wq/anydl-pro-ultra/pulls?q=is%3Apr) and automated tests are the evidence of work. In interviews, describe which design/code/review tasks you performed personally and disclose collaboration or AI-assisted work accurately. No external penetration-test certification or sole-authorship claim is implied.
 
-## 🗺️ Next upgrades
+### Next engineering work
 
-- [ ] Add automated unit tests around command construction and progress parsing
-- [ ] Add integration tests for download lifecycle states
-- [ ] Add release notes and versioned GitHub Releases
-- [ ] Add polished product screenshots / demo media
-- [ ] Explore optional AI upscaling through a clearly separated model pipeline
+- [ ] Clean-Windows installer, update and uninstall acceptance checklist
+- [ ] Integration tests for yt-dlp download state transitions and interruptions
+- [ ] Real-world smoke tests using legally permitted media
+- [ ] Installer signing and documented rollback/release procedure
+- [ ] Screenshots or a short reproducible demonstration video from the actual app
 
----
+## Responsible use
 
-## ⚠️ Responsible use
+Only download or process content you are permitted to access and store. Respect copyright, service conditions, security controls and DRM restrictions. Report vulnerabilities privately following [SECURITY.md](SECURITY.md).
 
-Use this application only for media you are legally permitted to download or process. Platform terms, copyright law and content licenses still apply.
-
----
-
-<div align="center">
-
-### Real processes. Real files. Real desktop engineering.
-
-**Built by Poojana Kaveesh**
-
-</div>
+**Scope:** Windows desktop engineering portfolio project, **not** a claim of enterprise-grade production certification.

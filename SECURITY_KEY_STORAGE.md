@@ -19,9 +19,7 @@ Remaining limitations: Privileged main-process code still needs decrypted keys.
 The renderer sees a newly typed secret while the user enters it (standard password-input
 behavior), but it cannot read an existing saved secret back. Proxy URL may contain proxy
 credentials and needs its own migration/security review before deployment with
-credentialed proxies. The main Electron window is not yet sandboxed; do not load
-untrusted web content in that privileged renderer. Embedded webviews remain isolated
-behind the independently merged sender-origin IPC guard.
+credentialed proxies. The main Electron window now enables Chromium sandboxing, context isolation and disabled Node integration. The sandboxed preload uses Electron contextBridge/IPC rather than unrestricted Node imports, and embedded webviews remain isolated behind main-frame sender checks. This is defense in depth, not proof that arbitrary untrusted pages are safe or a substitute for real Windows security testing.
 
 Validation: npm run security:test, npx tsc --noEmit, npm run build,
 and the existing Windows installer CI. A real Windows OS key-store migration and
