@@ -17,9 +17,6 @@ test('Electron certificate mitigation release is pinned for reproducible Windows
   assert.equal(manifest.engines.node, '>=22.12.0');
 });
 
-'use strict';
-const test = require('node:test');
-const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
