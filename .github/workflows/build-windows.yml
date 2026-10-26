@@ -46,6 +46,7 @@ jobs:
           set -euo pipefail
           cd .
           npm install electron-builder@26.18.0 vite@7.3.7 --save-dev --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund
           node - <<'NODE'
           const fs=require('node:fs');
           const b64=fs.readFileSync('package-lock.json').toString('base64');
