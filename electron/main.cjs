@@ -46,7 +46,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       webviewTag: true
     }
   });
@@ -58,7 +58,8 @@ function createWindow() {
   if (requestedDevUrl && !devServerUrl) console.warn('[security] Ignoring non-loopback Vite dev server URL.');
   const trustedFile = path.join(__dirname, '..', 'dist', 'index.html');
   // Defense in depth: the embedded page never chooses its own privileged preload.
-  // No main-window sandbox change here; that requires real Windows testing.
+  // Enforce Chromium sandbox even for the trusted app UI; the preload uses
+  // only the Electron IPC/contextBridge shim and no Node.js filesystem APIs.
   mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     if (!authorizeWebviewAttach(webPreferences, params,
       path.join(__dirname, 'webview-preload.cjs'), BROWSER_PARTITION)) {
