@@ -10,6 +10,7 @@
  * into the final installer, so end users need zero manual setup.
  */
 const https = require('https');
+const { createHash } = require('node:crypto');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -71,6 +72,7 @@ async function main() {
   fs.mkdirSync(esrganDir, { recursive: true });
   const esrganZip = path.join(OUT_DIR, 'realesrgan.zip');
   await download(REALESRGAN_ZIP_URL, esrganZip);
+  console.log('BINARY_SHA256_CAPTURE_REALESRGAN=' + createHash('sha256').update(fs.readFileSync(esrganZip)).digest('hex'));
   try {
     execFileSync('unzip', ['-o', '-j', esrganZip,
       'realesrgan-ncnn-vulkan.exe', 'vcomp140.dll', 'vcomp140d.dll',
@@ -88,6 +90,7 @@ async function main() {
   console.log('[fetch-bin] Downloading aria2c (multi-connection downloader) ...');
   const aria2Zip = path.join(OUT_DIR, 'aria2.zip');
   await download(ARIA2_ZIP_URL, aria2Zip);
+  console.log('BINARY_SHA256_CAPTURE_ARIA2=' + createHash('sha256').update(fs.readFileSync(aria2Zip)).digest('hex'));
   try {
     execFileSync('unzip', ['-o', '-j', aria2Zip, '*/aria2c.exe', '-d', OUT_DIR], { stdio: 'inherit' });
   } catch {
