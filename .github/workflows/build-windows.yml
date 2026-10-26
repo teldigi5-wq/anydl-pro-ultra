@@ -60,6 +60,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify sandboxed Electron renderer on Windows
+        run: npx electron electron/renderer-sandbox-smoke.cjs
+
       - name: Fetch yt-dlp and FFmpeg binaries
         run: npm run fetch-bin
 
