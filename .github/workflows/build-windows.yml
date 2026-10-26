@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd electron
+          cd .
           npm install electron-builder@26.18.0 vite@7.3.7 --save-dev --package-lock-only --ignore-scripts --no-audit --no-fund
           node - <<'NODE'
           const fs=require('node:fs');
