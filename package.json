@@ -26,7 +26,7 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "systeminformation": "^5.23.5",
-    "tailwind-merge": "3.4.0"
+    "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.17",
