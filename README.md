@@ -147,3 +147,7 @@ Some UI development fixtures exist (for example, [src/data/mockVideos.ts](src/da
 Only download or process content you are permitted to access and store. Respect copyright, service conditions, security controls and DRM restrictions. Report vulnerabilities privately following [SECURITY.md](SECURITY.md).
 
 **Scope:** Windows desktop engineering portfolio project, **not** a claim of enterprise-grade production certification.
+
+## AI/developer continuation — 9 November 2026
+
+See the [source-aware handoff and next milestones](docs/AI_CONTINUATION_2026-11-09.md) before continuing this project. This is a documentation-only review branch; recheck current PR heads, CI and deployed state. No merge, new certification or production rollout is implied.
