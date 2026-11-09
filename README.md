@@ -147,3 +147,10 @@ Some UI development fixtures exist (for example, [src/data/mockVideos.ts](src/da
 Only download or process content you are permitted to access and store. Respect copyright, service conditions, security controls and DRM restrictions. Report vulnerabilities privately following [SECURITY.md](SECURITY.md).
 
 **Scope:** Windows desktop engineering portfolio project, **not** a claim of enterprise-grade production certification.
+
+
+---
+
+## AI/developer recovery checkpoint (9 November 2026)
+
+See [the source-pinned and privacy-safe continuation guide](docs/AI_HANDOFF_2026-11-09.md). This records `main` at `f08007a1928c`; recheck the live branch and tests before work resumes. Documentation-only, not a production release or security certification.
